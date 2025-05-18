@@ -75,6 +75,39 @@ return {
 }
 ```
 
+### Local Development with LazyVim
+
+For local development with LazyVim, create a `lua/plugins/claudecode.lua` file with the following content:
+
+```lua
+return {
+  {
+    dir = "~/GitHub/claudecode.nvim",  -- Path to your local repository
+    name = "claudecode.nvim",
+    dependencies = {
+      "nvim-lua/plenary.nvim",
+    },
+    dev = true,
+    opts = {
+      -- Development configuration
+      log_level = "debug",
+      auto_start = true,  -- Optional: auto-start the server
+    },
+    keys = {
+      { "<leader>cc", "<cmd>ClaudeCodeStart<cr>", desc = "Start Claude Code" },
+      { "<leader>cs", "<cmd>ClaudeCodeSend<cr>", desc = "Send to Claude Code" },
+    },
+  },
+}
+```
+
+This configuration:
+
+1. Uses the `dir` parameter to specify the local path to your repository
+2. Sets `dev = true` to enable development mode
+3. Sets a more verbose log level for debugging
+4. Adds convenient keymaps for testing
+
 ## Configuration
 
 ```lua
@@ -179,9 +212,6 @@ This project uses [Nix](https://nixos.org/) for development environment manageme
    ```bash
    # For traditional package managers
    ln -s $(pwd) ~/.local/share/nvim/site/pack/plugins/start/claudecode.nvim
-
-   # For Lazy
-   ln -s $(pwd) ~/.local/share/nvim/lazy/claudecode.nvim
    ```
 
 Without Nix, ensure you have:
