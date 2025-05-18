@@ -6,5 +6,14 @@ export LUA_PATH="./lua/?.lua;./lua/?/init.lua;./?.lua;./?/init.lua;$LUA_PATH"
 # Run all tests
 cd "$(dirname "$0")" || exit
 echo "Running all tests..."
-busted -v tests/simple_test.lua tests/config_test.lua tests/server_test.lua tests/selection_test.lua
+
+# Find all test files with consistent patterns
+TEST_FILES=$(find tests -type f -name "*_test.lua" | sort)
+echo "Found test files: $TEST_FILES"
+
+if [ -n "$TEST_FILES" ]; then
+  busted -v $TEST_FILES
+else
+  echo "No test files found"
+fi
 

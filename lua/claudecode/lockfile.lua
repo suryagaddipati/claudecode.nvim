@@ -124,6 +124,21 @@ function M.update(port)
   return M.create(port)
 end
 
+--- Get active LSP clients using available API
+---@return table Array of LSP clients
+local function get_lsp_clients()
+  if vim.lsp then
+    if vim.lsp.get_clients then
+      -- Neovim >= 0.11
+      return vim.lsp.get_clients()
+    elseif vim.lsp.get_active_clients then
+      -- Neovim 0.8-0.10
+      return vim.lsp.get_active_clients()
+    end
+  end
+  return {}
+end
+
 --- Get workspace folders for the lock file
 ---@return table Array of workspace folder paths
 function M.get_workspace_folders()
@@ -133,29 +148,27 @@ function M.get_workspace_folders()
   table.insert(folders, vim.fn.getcwd())
 
   -- Get LSP workspace folders if available
-  if vim.lsp and vim.lsp.buf then
-    local clients = vim.lsp.buf_get_clients()
-    for _, client in pairs(clients) do
-      if client.config and client.config.workspace_folders then
-        for _, ws in ipairs(client.config.workspace_folders) do
-          -- Convert URI to path
-          local path = ws.uri
-          if path:sub(1, 7) == "file://" then
-            path = path:sub(8)
-          end
+  local clients = get_lsp_clients()
+  for _, client in pairs(clients) do
+    if client.config and client.config.workspace_folders then
+      for _, ws in ipairs(client.config.workspace_folders) do
+        -- Convert URI to path
+        local path = ws.uri
+        if path:sub(1, 7) == "file://" then
+          path = path:sub(8)
+        end
 
-          -- Check if already in the list
-          local exists = false
-          for _, folder in ipairs(folders) do
-            if folder == path then
-              exists = true
-              break
-            end
+        -- Check if already in the list
+        local exists = false
+        for _, folder in ipairs(folders) do
+          if folder == path then
+            exists = true
+            break
           end
+        end
 
-          if not exists then
-            table.insert(folders, path)
-          end
+        if not exists then
+          table.insert(folders, path)
         end
       end
     end

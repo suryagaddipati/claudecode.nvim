@@ -1,4 +1,13 @@
 describe("claudecode.init", function()
+  -- Save original functions
+  local saved_vim_api = vim.api
+  local saved_vim_deepcopy = vim.deepcopy
+  local saved_vim_tbl_deep_extend = vim.tbl_deep_extend
+  local saved_vim_notify = vim.notify
+  local saved_vim_fn = vim.fn
+  local saved_vim_log = vim.log
+  local saved_require = _G.require
+
   local mock_api = {
     nvim_create_autocmd = function() end,
     nvim_create_augroup = function()
@@ -24,51 +33,54 @@ describe("claudecode.init", function()
     end,
   }
 
-  before_each(function()
-    -- Save original modules
-    _G._saved_vim = _G.vim
-    _G._saved_require = _G.require
+  local mock_selection = {
+    enable = function() end,
+    disable = function() end,
+  }
 
-    -- Set up mocks
-    _G.vim = {
-      deepcopy = function(t)
-        return vim.deepcopy(t)
+  before_each(function()
+    -- Set up mocks by modifying properties of vim
+    vim.api = mock_api
+    vim.deepcopy = function(t)
+      return t
+    end -- Simple mock
+    vim.tbl_deep_extend = function(_, default, override)
+      local result = {}
+      for k, v in pairs(default) do
+        result[k] = v
+      end
+      for k, v in pairs(override) do
+        result[k] = v
+      end
+      return result
+    end
+    vim.notify = function() end
+    vim.fn = {
+      getpid = function()
+        return 123
       end,
-      tbl_deep_extend = function(_, default, override)
-        return vim.tbl_deep_extend("force", default, override)
+      expand = function()
+        return "/mock/path"
       end,
-      notify = function() end,
-      api = mock_api,
-      fn = {
-        getpid = function()
-          return 123
-        end,
-        expand = function()
-          return "/mock/path"
-        end,
-      },
-      log = {
-        levels = {
-          INFO = 2,
-          WARN = 3,
-          ERROR = 4,
-        },
+    }
+    vim.log = {
+      levels = {
+        INFO = 2,
+        WARN = 3,
+        ERROR = 4,
       },
     }
 
-    -- Mock require function
+    -- Mock require function to return our mocks
     _G.require = function(mod)
       if mod == "claudecode.server" then
         return mock_server
       elseif mod == "claudecode.lockfile" then
         return mock_lockfile
       elseif mod == "claudecode.selection" then
-        return {
-          enable = function() end,
-          disable = function() end,
-        }
+        return mock_selection
       else
-        return _G._saved_require(mod)
+        return saved_require(mod)
       end
     end
 
@@ -80,9 +92,14 @@ describe("claudecode.init", function()
   end)
 
   after_each(function()
-    -- Restore original modules
-    _G.vim = _G._saved_vim
-    _G.require = _G._saved_require
+    -- Restore original functions
+    vim.api = saved_vim_api
+    vim.deepcopy = saved_vim_deepcopy
+    vim.tbl_deep_extend = saved_vim_tbl_deep_extend
+    vim.notify = saved_vim_notify
+    vim.fn = saved_vim_fn
+    vim.log = saved_vim_log
+    _G.require = saved_require
   end)
 
   describe("setup", function()
