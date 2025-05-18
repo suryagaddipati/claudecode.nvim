@@ -1,0 +1,83 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        neovim-version: ["stable", "nightly"]
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Neovim
+        uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: ${{ matrix.neovim-version }}
+
+      - name: Setup Lua
+        uses: leafo/gh-actions-lua@v10
+        with:
+          luaVersion: "5.1"
+
+      - name: Setup Luarocks
+        uses: leafo/gh-actions-luarocks@v4
+
+      - name: Install dependencies
+        run: |
+          luarocks install luacheck
+          luarocks install busted
+          luarocks install luacov
+          luarocks install luacov-reporter-lcov
+
+      - name: Run Luacheck
+        run: luacheck lua/ tests/
+
+      - name: Run tests
+        run: |
+          cd tests
+          busted --coverage
+
+      - name: Generate coverage report
+        run: |
+          cd tests
+          luacov-console
+          luacov-console -r lcov > lcov.info
+
+      - name: Upload coverage report
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./tests/lcov.info
+          fail_ci_if_error: false
+
+  integration-tests:
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    strategy:
+      matrix:
+        neovim-version: ["stable"]
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Neovim
+        uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: ${{ matrix.neovim-version }}
+
+      - name: Install test dependencies
+        run: |
+          git clone --depth 1 https://github.com/nvim-lua/plenary.nvim ~/.local/share/nvim/site/pack/vendor/start/plenary.nvim
+          ln -s $(pwd) ~/.local/share/nvim/site/pack/vendor/start/claudecode.nvim
+
+      - name: Run integration tests
+        run: |
+          nvim --headless -u tests/minimal_init.lua -c "lua require('plenary.test_harness').test_directory('tests/integration', {minimal_init = 'tests/minimal_init.lua'})"
