@@ -13,6 +13,7 @@ A Neovim plugin that integrates with Claude Code CLI to provide a seamless AI co
 - 🛠️ Integration with Neovim's buffer and window management
 - 📝 Support for file operations and diagnostics
 - 🖥️ Terminal integration for launching Claude with proper environment
+- 🔒 Automatic cleanup on exit - server shutdown and lockfile removal
 
 ## Requirements
 

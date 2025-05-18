@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Selection tracking for editor context
 - MCP tool implementations
 - Basic commands (:ClaudeCodeStart, :ClaudeCodeStop, :ClaudeCodeStatus, :ClaudeCodeSend)
+- Automatic shutdown and cleanup on Neovim exit
 - Testing framework with Busted
 - Development environment with Nix flakes
 

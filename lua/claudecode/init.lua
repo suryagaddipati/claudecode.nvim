@@ -68,6 +68,17 @@ function M.setup(opts)
   -- Set up commands
   M._create_commands()
 
+  -- Set up auto-shutdown on Neovim exit
+  vim.api.nvim_create_autocmd("VimLeavePre", {
+    group = vim.api.nvim_create_augroup("ClaudeCodeShutdown", { clear = true }),
+    callback = function()
+      if M.state.server then
+        M.stop()
+      end
+    end,
+    desc = "Automatically stop Claude Code integration when exiting Neovim",
+  })
+
   M.state.initialized = true
   return M
 end
