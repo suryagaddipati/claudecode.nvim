@@ -1,4 +1,6 @@
 -- Unit tests for configuration module
+-- luacheck: globals expect
+require("tests.busted_setup")
 
 describe("Configuration", function()
   local config
@@ -49,7 +51,7 @@ describe("Configuration", function()
       track_selection = false,
     }
 
-    local success, err = pcall(function()
+    local success, _ = pcall(function() -- Use _ for unused error variable
       config.validate(invalid_config)
     end)
 
@@ -65,7 +67,7 @@ describe("Configuration", function()
       track_selection = false,
     }
 
-    local success, err = pcall(function()
+    local success, _ = pcall(function() -- Use _ for unused error variable
       config.validate(invalid_config)
     end)
 

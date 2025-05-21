@@ -327,9 +327,10 @@ local vim = {
   _mock = {
     -- Add a buffer to the mock
     add_buffer = function(bufnr, name, content, opts)
-      vim._buffers[bufnr] = {
+      -- Use 'self' reference instead of global vim
+      _G.vim._buffers[bufnr] = {
         name = name,
-        lines = type(content) == "string" and vim._mock.split_lines(content) or content,
+        lines = type(content) == "string" and _G.vim._mock.split_lines(content) or content,
         options = opts or {},
         listed = true,
       }
@@ -346,7 +347,7 @@ local vim = {
 
     -- Set up a window
     add_window = function(winid, bufnr, cursor)
-      vim._windows[winid] = {
+      _G.vim._windows[winid] = {
         buffer = bufnr,
         cursor = cursor or { 1, 0 },
       }
@@ -354,20 +355,24 @@ local vim = {
 
     -- Reset all mock state
     reset = function()
-      vim._buffers = {}
-      vim._windows = {}
-      vim._commands = {}
-      vim._autocmds = {}
-      vim._vars = {}
-      vim._options = {}
-      vim._last_command = nil
-      vim._last_echo = nil
-      vim._last_error = nil
+      _G.vim._buffers = {}
+      _G.vim._windows = {}
+      _G.vim._commands = {}
+      _G.vim._autocmds = {}
+      _G.vim._vars = {}
+      _G.vim._options = {}
+      _G.vim._last_command = nil
+      _G.vim._last_echo = nil
+      _G.vim._last_error = nil
     end,
   },
 }
 
--- Initialize with some mock state
+-- Initialize with some mock state once vim is assigned to _G
+if _G.vim == nil then
+  _G.vim = vim -- Ensure the global vim is set before initialization
+end
+-- Initialize buffers and windows after _G.vim is defined
 vim._mock.add_buffer(1, "/home/user/project/test.lua", "local test = {}\nreturn test")
 vim._mock.add_window(0, 1, { 1, 0 })
 

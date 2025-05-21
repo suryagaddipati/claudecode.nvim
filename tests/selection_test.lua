@@ -83,7 +83,7 @@ if not _G.vim then
       end,
 
       -- Get buffer lines
-      nvim_buf_get_lines = function(bufnr, start, end_line, strict)
+      nvim_buf_get_lines = function(bufnr, start, end_line, _strict) -- Prefix unused param with underscore
         if not _G.vim._buffers[bufnr] then
           return {}
         end
@@ -138,7 +138,7 @@ if not _G.vim then
     },
 
     -- Mock defer_fn
-    defer_fn = function(fn, timeout)
+    defer_fn = function(fn, _timeout) -- Prefix unused param with underscore
       -- For testing, we'll execute immediately
       fn()
     end,
@@ -146,7 +146,7 @@ if not _G.vim then
     -- Mock vim.loop
     loop = {
       -- Timer functions
-      timer_stop = function(timer)
+      timer_stop = function(_timer) -- Prefix unused param with underscore
         return true
       end,
     },
@@ -192,9 +192,10 @@ if not _G.vim then
   _G.vim.test.set_cursor(1, 1, 0)
 end
 
+-- luacheck: globals mock_server
 describe("Selection module", function()
   local selection
-  local mock_server = {
+  mock_server = {
     broadcast = function(event, data)
       -- Store last broadcast for testing
       mock_server.last_broadcast = {

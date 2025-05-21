@@ -134,7 +134,7 @@ function M.get_diagnostics(_) -- '_' for unused params
 end
 
 -- Tool: Get open editors
-function M.get_open_editors(params)
+function M.get_open_editors(_params) -- Prefix unused params with underscore
   local editors = {}
 
   -- Get list of all buffers

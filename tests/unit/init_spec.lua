@@ -1,3 +1,6 @@
+require("tests.busted_setup")
+require("tests.mocks.vim") -- Add mock vim for testing
+
 describe("claudecode.init", function()
   -- Save original functions
   local saved_vim_api = vim.api
@@ -13,6 +16,7 @@ describe("claudecode.init", function()
     nvim_create_augroup = function()
       return 1
     end,
+    nvim_create_user_command = function() end, -- Add this missing function
   }
 
   local mock_server = {

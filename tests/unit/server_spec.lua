@@ -1,4 +1,6 @@
 -- Unit tests for WebSocket server module
+-- luacheck: globals expect
+require("tests.busted_setup")
 
 describe("WebSocket Server", function()
   local server
@@ -29,7 +31,7 @@ describe("WebSocket Server", function()
 
     local port = server.find_available_port(min_port, max_port)
 
-    expect(port).to_be_table()
+    expect(port).to_be(min_port) -- In mock implementation, it just returns min_port
     expect(port >= min_port and port <= max_port).to_be_true()
   end)
 
@@ -41,11 +43,12 @@ describe("WebSocket Server", function()
       },
     }
 
-    local success, result = server.start(config)
+    local success, port = server.start(config)
 
     expect(success).to_be_true()
     expect(server.state.server).to_be_table()
-    expect(server.state.port).to_be_table()
+    expect(server.state.port).to_be(port)
+    expect(port).to_be(config.port_range.min) -- Mock returns min port
 
     -- Clean up
     server.stop()
@@ -110,8 +113,8 @@ describe("WebSocket Server", function()
     server.register_handlers()
 
     expect(server.state.handlers).to_be_table()
-    expect(server.state.handlers["mcp.connect"]).to_be_table()
-    expect(server.state.handlers["mcp.tool.invoke"]).to_be_table()
+    expect(type(server.state.handlers["mcp.connect"])).to_be("function") -- Function, not table
+    expect(type(server.state.handlers["mcp.tool.invoke"])).to_be("function") -- Function, not table
   end)
 
   it("should send message to client", function()

@@ -23,7 +23,7 @@ if not _G.vim then
       end,
     },
     json = {
-      encode = function(obj)
+      encode = function(_obj) -- Prefix unused param with underscore
         return '{"mocked":"json"}'
       end,
     },
@@ -34,10 +34,12 @@ end
 describe("Lockfile Module", function()
   local lockfile
 
-  -- Save original vim functions/tables
+  -- Save original vim functions/tables (not used in this test but kept for reference)
+  -- luacheck: ignore
   local orig_vim = _G.vim
   local orig_fn_getcwd = vim.fn.getcwd
   local orig_lsp = vim.lsp
+  -- luacheck: no ignore
 
   -- Create a mock for testing LSP client resolution
   local create_mock_env = function(api_version)

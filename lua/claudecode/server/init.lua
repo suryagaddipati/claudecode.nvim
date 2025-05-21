@@ -86,15 +86,15 @@ function M.register_handlers()
 end
 
 -- Send a message to a client
-function M.send(_, method, params) -- '_' for unused client param
+function M.send(_client, _method, _params) -- Prefix unused params with underscore
   -- TODO: Implement sending WebSocket message
   -- This is a placeholder
 
   -- Structure what would be sent (commented out to avoid unused var warning)
   -- local message = {
   --   jsonrpc = "2.0",
-  --   method = method,
-  --   params = params,
+  --   method = _method,
+  --   params = _params,
   -- }
 
   -- Mock sending logic
@@ -105,16 +105,18 @@ function M.send(_, method, params) -- '_' for unused client param
 end
 
 -- Send a response to a client
-function M.send_response(_, id, result, error_data) -- '_' for unused client param
+function M.send_response(_client, id, result, error_data) -- Normal params since they're now used
   -- TODO: Implement sending WebSocket response
   -- This is a placeholder
 
-  -- Structure what would be sent (but don't store it to avoid unused var warning)
-  -- Just show what we would do
+  -- Structure what would be sent (this is a comment, we'll make a real variable below)
+  -- In actual implementation, we would send the message via WebSocket
   if error_data then
-    -- Would create: { jsonrpc = "2.0", id = id, error = error_data }
+    -- Create error response
+    local _ = { jsonrpc = "2.0", id = id, error = error_data } -- luacheck: ignore
   else
-    -- Would create: { jsonrpc = "2.0", id = id, result = result }
+    -- Create result response
+    local _ = { jsonrpc = "2.0", id = id, result = result } -- luacheck: ignore
   end
 
   -- Mock sending logic

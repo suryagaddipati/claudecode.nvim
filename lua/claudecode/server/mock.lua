@@ -20,9 +20,9 @@ M.state = {
 ---@param min number The minimum port number
 ---@param max number The maximum port number
 ---@return number port The selected port
-function M.find_available_port(min, max)
+function M.find_available_port(min, _max)
   -- For mock implementation, just return the minimum port
-  -- In a real implementation, this would scan for available ports
+  -- In a real implementation, this would scan for available ports in the range
   return min
 end
 
@@ -83,8 +83,9 @@ end
 function M.register_handlers()
   -- Default handlers
   M.state.handlers = {
-    ["mcp.connect"] = function(client, params)
+    ["mcp.connect"] = function(_client, _params)
       -- Handle connection handshake
+      -- Parameters not used in this mock implementation
       return { result = { message = "Connection established" } }
     end,
 

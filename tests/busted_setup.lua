@@ -5,6 +5,9 @@ if not _G.vim then
   _G.vim = require("tests.mocks.vim")
 end
 
+-- Ensure vim global is accessible
+_G.vim = _G.vim or {}
+
 -- Setup test globals
 _G.assert = require("luassert")
 
