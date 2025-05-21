@@ -1,4 +1,9 @@
--- Selection tracking for Claude Code Neovim integration
+---
+-- Manages selection tracking and communication with the Claude server.
+-- This module handles enabling/disabling selection tracking, debouncing updates,
+-- determining the current selection (visual or cursor position), and sending
+-- updates to the Claude server.
+-- @module claudecode.selection
 local M = {}
 
 -- Selection state
@@ -9,7 +14,9 @@ M.state = {
   debounce_ms = 300, -- Default debounce time in milliseconds
 }
 
--- Enable selection tracking
+--- Enables selection tracking.
+-- Sets up autocommands to monitor cursor movements, mode changes, and text changes.
+-- @param server table The server object to use for communication.
 function M.enable(server)
   if M.state.tracking_enabled then
     return
@@ -18,11 +25,11 @@ function M.enable(server)
   M.state.tracking_enabled = true
   M.server = server
 
-  -- Set up autocommands for tracking selections
   M._create_autocommands()
 end
 
--- Disable selection tracking
+--- Disables selection tracking.
+-- Clears autocommands, resets internal state, and stops any active debounce timers.
 function M.disable()
   if not M.state.tracking_enabled then
     return
@@ -30,25 +37,23 @@ function M.disable()
 
   M.state.tracking_enabled = false
 
-  -- Remove autocommands
   M._clear_autocommands()
 
-  -- Clear state
   M.state.latest_selection = nil
   M.server = nil
 
-  -- Clear debounce timer if active
   if M.state.debounce_timer then
     vim.loop.timer_stop(M.state.debounce_timer)
     M.state.debounce_timer = nil
   end
 end
 
--- Create autocommands for tracking selections
+--- Creates autocommands for tracking selections.
+-- Sets up listeners for CursorMoved, CursorMovedI, ModeChanged, and TextChanged events.
+-- @local
 function M._create_autocommands()
   local group = vim.api.nvim_create_augroup("ClaudeCodeSelection", { clear = true })
 
-  -- Track selection changes in various modes
   vim.api.nvim_create_autocmd({ "CursorMoved", "CursorMovedI" }, {
     group = group,
     callback = function()
@@ -56,7 +61,6 @@ function M._create_autocommands()
     end,
   })
 
-  -- Track mode changes
   vim.api.nvim_create_autocmd("ModeChanged", {
     group = group,
     callback = function()
@@ -64,7 +68,6 @@ function M._create_autocommands()
     end,
   })
 
-  -- Track buffer content changes
   vim.api.nvim_create_autocmd("TextChanged", {
     group = group,
     callback = function()
@@ -73,44 +76,49 @@ function M._create_autocommands()
   })
 end
 
--- Clear autocommands
+--- Clears the autocommands related to selection tracking.
+-- @local
 function M._clear_autocommands()
   vim.api.nvim_clear_autocmds({ group = "ClaudeCodeSelection" })
 end
 
--- Handle cursor movement events
+--- Handles cursor movement events.
+-- Triggers a debounced update of the selection.
 function M.on_cursor_moved()
   -- Debounce the update to avoid sending too many updates
   M.debounce_update()
 end
 
--- Handle mode change events
+--- Handles mode change events.
+-- Triggers an immediate update of the selection.
 function M.on_mode_changed()
   -- Update selection immediately on mode change
   M.update_selection()
 end
 
--- Handle text change events
+--- Handles text change events.
+-- Triggers a debounced update of the selection.
 function M.on_text_changed()
-  -- Debounce the update
   M.debounce_update()
 end
 
--- Debounce selection updates
+--- Debounces selection updates.
+-- Ensures that `update_selection` is not called too frequently by deferring
+-- its execution.
 function M.debounce_update()
-  -- Cancel existing timer if active
   if M.state.debounce_timer then
     vim.loop.timer_stop(M.state.debounce_timer)
   end
 
-  -- Create new timer for debounced update
   M.state.debounce_timer = vim.defer_fn(function()
     M.update_selection()
     M.state.debounce_timer = nil
   end, M.state.debounce_ms)
 end
 
--- Update the current selection
+--- Updates the current selection state.
+-- Determines the current selection based on the editor mode (visual or normal)
+-- and sends an update to the server if the selection has changed.
 function M.update_selection()
   if not M.state.tracking_enabled then
     return
@@ -118,29 +126,25 @@ function M.update_selection()
 
   local current_mode = vim.api.nvim_get_mode().mode
 
-  -- Get selection based on mode
   local current_selection
   if current_mode == "v" or current_mode == "V" or current_mode == "\022" then
-    -- Visual mode selection
     current_selection = M.get_visual_selection()
   else
-    -- Normal mode - no selection, just track cursor position
     current_selection = M.get_cursor_position()
   end
 
-  -- Check if selection has changed
   if M.has_selection_changed(current_selection) then
-    -- Store latest selection
     M.state.latest_selection = current_selection
 
-    -- Send selection update if connected to Claude
     if M.server then
       M.send_selection_update(current_selection)
     end
   end
 end
 
--- Get the current visual selection
+--- Gets the current visual selection details.
+-- @return table|nil A table containing selection text, file path, URL, and
+--                   start/end positions, or nil if no visual selection exists.
 function M.get_visual_selection()
   local start_pos = vim.fn.getpos("'<")
   local end_pos = vim.fn.getpos("'>")
@@ -153,7 +157,6 @@ function M.get_visual_selection()
   local current_buf = vim.api.nvim_get_current_buf()
   local file_path = vim.api.nvim_buf_get_name(current_buf)
 
-  -- Get selection text
   local lines = vim.api.nvim_buf_get_lines(
     current_buf,
     start_pos[2] - 1, -- 0-indexed line
@@ -161,7 +164,6 @@ function M.get_visual_selection()
     false
   )
 
-  -- Adjust for column positions
   if #lines == 1 then
     lines[1] = string.sub(lines[1], start_pos[3], end_pos[3])
   else
@@ -169,7 +171,6 @@ function M.get_visual_selection()
     lines[#lines] = string.sub(lines[#lines], 1, end_pos[3])
   end
 
-  -- Combine lines
   local text = table.concat(lines, "\n")
 
   return {
@@ -184,7 +185,9 @@ function M.get_visual_selection()
   }
 end
 
--- Get the current cursor position (no selection)
+--- Gets the current cursor position when no visual selection is active.
+-- @return table A table containing an empty text, file path, URL, and cursor
+--               position as start/end, with isEmpty set to true.
 function M.get_cursor_position()
   local cursor_pos = vim.api.nvim_win_get_cursor(0)
   local current_buf = vim.api.nvim_get_current_buf()
@@ -202,30 +205,34 @@ function M.get_cursor_position()
   }
 end
 
--- Check if selection has changed
+--- Checks if the selection has changed compared to the latest stored selection.
+-- @param new_selection table|nil The new selection object to compare.
+-- @return boolean true if the selection has changed, false otherwise.
 function M.has_selection_changed(new_selection)
-  if not M.state.latest_selection then
+  local old_selection = M.state.latest_selection
+
+  if not new_selection then
+    -- If old selection was also nil, no change. Otherwise (old selection existed), it's a change.
+    return old_selection ~= nil
+  end
+
+  if not old_selection then
     return true
   end
 
-  local current = M.state.latest_selection
-
-  -- Compare file paths
-  if current.filePath ~= new_selection.filePath then
+  if old_selection.filePath ~= new_selection.filePath then
     return true
   end
 
-  -- Compare text content
-  if current.text ~= new_selection.text then
+  if old_selection.text ~= new_selection.text then
     return true
   end
 
-  -- Compare selection positions
   if
-    current.selection.start.line ~= new_selection.selection.start.line
-    or current.selection.start.character ~= new_selection.selection.start.character
-    or current.selection["end"].line ~= new_selection.selection["end"].line
-    or current.selection["end"].character ~= new_selection.selection["end"].character
+    old_selection.selection.start.line ~= new_selection.selection.start.line
+    or old_selection.selection.start.character ~= new_selection.selection.start.character
+    or old_selection.selection["end"].line ~= new_selection.selection["end"].line
+    or old_selection.selection["end"].character ~= new_selection.selection["end"].character
   then
     return true
   end
@@ -233,28 +240,29 @@ function M.has_selection_changed(new_selection)
   return false
 end
 
--- Send selection update to Claude
+--- Sends the selection update to the Claude server.
+-- @param selection table The selection object to send.
 function M.send_selection_update(selection)
-  -- Send via WebSocket
   M.server.broadcast("selection_changed", selection)
 end
 
--- Get the latest selection
+--- Gets the latest recorded selection.
+-- @return table|nil The latest selection object, or nil if none recorded.
 function M.get_latest_selection()
   return M.state.latest_selection
 end
 
--- Send current selection to Claude (user command)
+--- Sends the current selection to Claude.
+-- This function is typically invoked by a user command. It forces an immediate
+-- update and sends the latest selection.
 function M.send_current_selection()
   if not M.state.tracking_enabled or not M.server then
     vim.api.nvim_err_writeln("Claude Code is not running")
     return
   end
 
-  -- Force an immediate selection update
   M.update_selection()
 
-  -- Get the latest selection
   local selection = M.state.latest_selection
 
   if not selection then
@@ -262,7 +270,6 @@ function M.send_current_selection()
     return
   end
 
-  -- Send it to Claude
   M.send_selection_update(selection)
 
   vim.api.nvim_echo({ { "Selection sent to Claude", "Normal" } }, false, {})

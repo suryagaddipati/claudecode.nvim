@@ -93,7 +93,7 @@ return {
     config = true, -- or function(_, opts) require("claudecode").setup(opts) end
     keys = {
       { "<leader>cc", "<cmd>ClaudeCode<cr>", desc = "Toggle Claude Terminal" },
-      { "<leader>cs", "<cmd>ClaudeCodeSend<cr>", desc = "Send to Claude Code" },
+      { "<leader>ck", "<cmd>ClaudeCodeSend<cr>", desc = "Send to Claude Code" },
       { "<leader>co", "<cmd>ClaudeCodeOpen<cr>", desc = "Open Claude Terminal" },
       { "<leader>cx", "<cmd>ClaudeCodeClose<cr>", desc = "Close Claude Terminal" },
     },
@@ -131,7 +131,7 @@ return {
     config = true,
     keys = {
       { "<leader>cc", "<cmd>ClaudeCode<cr>", desc = "Toggle Claude Terminal" },
-      { "<leader>cs", "<cmd>ClaudeCodeSend<cr>", desc = "Send to Claude Code" },
+      { "<leader>ck", "<cmd>ClaudeCodeSend<cr>", desc = "Send to Claude Code" },
       { "<leader>co", "<cmd>ClaudeCodeOpen<cr>", desc = "Open Claude Terminal" },
       { "<leader>cx", "<cmd>ClaudeCodeClose<cr>", desc = "Close Claude Terminal" },
     },
@@ -220,7 +220,7 @@ No default keymaps are provided. Add your own in your configuration:
 
 ```lua
 vim.keymap.set("n", "<leader>cc", "<cmd>ClaudeCode<cr>", { desc = "Toggle Claude Terminal" })
-vim.keymap.set({"n", "v"}, "<leader>cs", "<cmd>ClaudeCodeSend<cr>", { desc = "Send to Claude Code" })
+vim.keymap.set({"n", "v"}, "<leader>ck", "<cmd>ClaudeCodeSend<cr>", { desc = "Send to Claude Code" })
 
 -- Or more specific maps:
 vim.keymap.set("n", "<leader>co", "<cmd>ClaudeCodeOpen<cr>", { desc = "Open Claude Terminal" })
