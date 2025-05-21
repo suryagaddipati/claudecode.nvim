@@ -17,13 +17,13 @@
         treefmt = treefmt-nix.lib.evalModule pkgs {
           projectRootFile = "flake.nix";
           programs = {
-            stylua.enable = true; # Lua formatter
-            nixpkgs-fmt.enable = true; # Nix formatter
-            prettier.enable = true; # Markdown/YAML/JSON formatter
-            shfmt.enable = true; # Shell formatter
-            actionlint.enable = true; # GitHub Actions linter
-            zizmor.enable = true; # GitHub Actions security analyzer
-            shellcheck.enable = true; # Shell script analyzer
+            stylua.enable = true;
+            nixpkgs-fmt.enable = true;
+            prettier.enable = true;
+            shfmt.enable = true;
+            actionlint.enable = true;
+            zizmor.enable = true;
+            shellcheck.enable = true;
           };
           settings.formatter.shellcheck.options = [ "--exclude=SC1091,SC2016" ];
         };
@@ -37,24 +37,21 @@
 
         devShells.default = pkgs.mkShell {
           buildInputs = with pkgs; [
-            # Lua and development tools
             lua5_1
             luajitPackages.luacheck
-            luajitPackages.busted # Testing framework
+            luajitPackages.busted
+            luajitPackages.luacov
 
-            # WebSocket implementation
             luajitPackages.luasocket
             luajitPackages.lua-cjson
 
-            # Development utilities
             ast-grep
-            neovim # For testing the plugin
-            luarocks # Lua package manager
-            gnumake # For running the Makefile
-            websocat # WebSocket testing utility
-            jq # JSON processor for parsing responses
+            neovim
+            luarocks
+            gnumake
+            websocat
+            jq
 
-            # Formatting tools (via treefmt-nix)
             treefmt.config.build.wrapper
           ];
         };

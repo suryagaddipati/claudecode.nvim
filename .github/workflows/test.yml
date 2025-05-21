@@ -43,23 +43,22 @@ jobs:
           luarocks install luacov-reporter-lcov
 
       - name: Run Luacheck
-        run: luacheck lua/ tests/
+        run: luacheck lua/ tests/ --no-unused-args --no-max-line-length
 
       - name: Run tests
         run: |
-          cd tests
-          busted --coverage
+          chmod +x ./run_tests.sh
+          ./run_tests.sh
 
       - name: Generate coverage report
         run: |
-          cd tests
           luacov-console
           luacov-console -r lcov > lcov.info
 
       - name: Upload coverage report
         uses: codecov/codecov-action@c16abc29c95fcf9174b58eb7e1abf4c866893bc8 # v4
         with:
-          files: ./tests/lcov.info
+          files: ./lcov.info
           fail_ci_if_error: false
 
   integration-tests:

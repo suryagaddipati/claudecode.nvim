@@ -43,6 +43,9 @@ luac.out
 /luacov.*
 /tests/luacov.*
 /tests/lcov.info
+/lcov.info
+luacov.report.out
+luacov.stats.out
 
 # Temporary files
 .DS_Store

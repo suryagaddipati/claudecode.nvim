@@ -11,9 +11,9 @@ echo "Found test files:"
 echo "$TEST_FILES"
 
 if [ -n "$TEST_FILES" ]; then
-  # Pass test files to busted - quotes needed but shellcheck disabled as we need word splitting
+  # Pass test files to busted with coverage flag - quotes needed but shellcheck disabled as we need word splitting
   # shellcheck disable=SC2086
-  busted -v $TEST_FILES
+  busted --coverage -v $TEST_FILES
 else
   echo "No test files found"
 fi

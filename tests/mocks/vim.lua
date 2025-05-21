@@ -1,5 +1,67 @@
 -- Mock implementation of the Neovim API for tests
 
+-- Spy functionality for testing
+if _G.spy == nil then
+  _G.spy = {
+    on = function(table, method_name)
+      -- Save original function
+      local original = table[method_name]
+      -- Keep track of calls
+      local calls = {}
+
+      -- Replace with spied function
+      table[method_name] = function(...)
+        table.insert(calls, { vals = { ... } })
+        if original then
+          return original(...)
+        end
+      end
+
+      -- Add spy methods to the function
+      table[method_name].calls = calls
+      table[method_name].spy = function()
+        return {
+          was_called = function(n)
+            assert(#calls == n, "Expected " .. n .. " calls, got " .. #calls)
+            return true
+          end,
+          was_not_called = function()
+            assert(#calls == 0, "Expected 0 calls, got " .. #calls)
+            return true
+          end,
+          was_called_with = function(...)
+            local expected = { ... }
+            assert(#calls > 0, "Function was never called")
+
+            -- Compare args
+            local last_call = calls[#calls].vals
+            for i, v in ipairs(expected) do
+              if type(v) == "table" and v._type == "match" then
+                -- Use custom matcher (simplified)
+                if v._match == "is_table" and type(last_call[i]) ~= "table" then
+                  assert(false, "Expected table at arg " .. i)
+                end
+              else
+                assert(last_call[i] == v, "Argument mismatch at position " .. i)
+              end
+            end
+            return true
+          end,
+        }
+      end
+
+      return table[method_name]
+    end,
+  }
+
+  -- Simple table matcher for spy assertions
+  _G.match = {
+    is_table = function()
+      return { _type = "match", _match = "is_table" }
+    end,
+  }
+end
+
 local vim = {
   _buffers = {},
   _windows = {},

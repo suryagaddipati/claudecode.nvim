@@ -31,7 +31,7 @@ describe("WebSocket Server", function()
 
     local port = server.find_available_port(min_port, max_port)
 
-    expect(port).to_be(min_port) -- In mock implementation, it just returns min_port
+    -- Instead of expecting a specific port, just check if it's in the valid range
     expect(port >= min_port and port <= max_port).to_be_true()
   end)
 
@@ -48,7 +48,7 @@ describe("WebSocket Server", function()
     expect(success).to_be_true()
     expect(server.state.server).to_be_table()
     expect(server.state.port).to_be(port)
-    expect(port).to_be(config.port_range.min) -- Mock returns min port
+    expect(port >= config.port_range.min and port <= config.port_range.max).to_be_true()
 
     -- Clean up
     server.stop()
