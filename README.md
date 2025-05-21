@@ -29,16 +29,51 @@ Note: The terminal feature can use `Snacks.nvim` or the native Neovim terminal. 
 
 ### Using [lazy.nvim](https://github.com/folke/lazy.nvim)
 
+Add the following to your plugins configuration:
+
 ```lua
 {
   "coder/claudecode.nvim",
   dependencies = {
     "nvim-lua/plenary.nvim",
-    "folke/snacks.nvim", -- Added dependency
+    "folke/snacks.nvim", -- Optional dependency for enhanced terminal
+  },
+  opts = {
+    -- Configuration for claudecode main
+    -- Optional: terminal_cmd = "claude --magic-flag",
+
+    -- Configuration for the interactive terminal:
+    terminal = {
+      split_side = "right",            -- "left" or "right"
+      split_width_percentage = 0.3,    -- 0.0 to 1.0
+      provider = "snacks",             -- "snacks" or "native"
+      show_native_term_exit_tip = true, -- Show tip for Ctrl-\\ Ctrl-N
+    },
+  },
+  -- The plugin will call require("claudecode").setup(opts)
+  config = true,
+  -- Optional: Add convenient keymaps
+  keys = {
+    { "<leader>cc", "<cmd>ClaudeCode<cr>", desc = "Toggle Claude Terminal" },
+    { "<leader>ck", "<cmd>ClaudeCodeSend<cr>", desc = "Send to Claude Code" },
+    { "<leader>co", "<cmd>ClaudeCodeOpen<cr>", desc = "Open Claude Terminal" },
+    { "<leader>cx", "<cmd>ClaudeCodeClose<cr>", desc = "Close Claude Terminal" },
+  },
+}
+```
+
+For those who prefer a function-style config:
+
+```lua
+{
+  "coder/claudecode.nvim",
+  dependencies = {
+    "nvim-lua/plenary.nvim",
+    "folke/snacks.nvim", -- Optional dependency
   },
   config = function()
-    -- Ensure snacks is loaded if you want to use the terminal immediately
-    -- require("snacks") -- Or handle this in your init.lua
+    -- If using snacks, ensure it's loaded
+    -- require("snacks")
     require("claudecode").setup({
       -- Optional configuration
     })
@@ -53,51 +88,13 @@ use {
   "coder/claudecode.nvim",
   requires = {
     "nvim-lua/plenary.nvim",
-    "folke/snacks.nvim", -- Added dependency
+    "folke/snacks.nvim", -- Optional dependency
   },
   config = function()
     require("claudecode").setup({
       -- Optional configuration
     })
   end
-}
-```
-
-### Using [LazyVim](https://github.com/LazyVim/LazyVim)
-
-Add the following to your `lua/plugins/claudecode.lua`:
-
-```lua
-return {
-  {
-    "coder/claudecode.nvim",
-    dependencies = {
-      "nvim-lua/plenary.nvim",
-      "folke/snacks.nvim", -- Added dependency
-    },
-    opts = {
-      -- Optional configuration for claudecode main
-      -- Example:
-      -- terminal_cmd = "claude --magic-flag",
-
-      -- Configuration for the interactive terminal can also be nested here:
-      terminal = {
-        split_side = "left",            -- "left" or "right"
-        split_width_percentage = 0.4, -- 0.0 to 1.0
-        provider = "snacks",          -- "snacks" or "native" (defaults to "snacks")
-        show_native_term_exit_tip = true, -- Show tip for Ctrl-\\ Ctrl-N (defaults to true)
-      },
-    },
-    -- The main require("claudecode").setup(opts) will handle passing
-    -- opts.terminal to the terminal module's setup.
-    config = true, -- or function(_, opts) require("claudecode").setup(opts) end
-    keys = {
-      { "<leader>cc", "<cmd>ClaudeCode<cr>", desc = "Toggle Claude Terminal" },
-      { "<leader>ck", "<cmd>ClaudeCodeSend<cr>", desc = "Send to Claude Code" },
-      { "<leader>co", "<cmd>ClaudeCodeOpen<cr>", desc = "Open Claude Terminal" },
-      { "<leader>cx", "<cmd>ClaudeCodeClose<cr>", desc = "Close Claude Terminal" },
-    },
-  },
 }
 ```
 

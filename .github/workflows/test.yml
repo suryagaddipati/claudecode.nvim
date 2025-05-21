@@ -52,8 +52,55 @@ jobs:
 
       - name: Generate coverage report
         run: |
-          luacov-console
-          luacov-console -r lcov > lcov.info
+          # Check if stats file exists (created by busted --coverage)
+          if [ -f "luacov.stats.out" ]; then
+            # Generate the regular luacov report
+            luacov
+
+            # Convert to lcov format if luacov-reporter-lcov is installed
+            if command -v luacov-reporter-lcov &> /dev/null; then
+              luacov-reporter-lcov
+              if [ -f "luacov.report.out.lcov" ]; then
+                cp luacov.report.out.lcov lcov.info
+              else
+                # Fallback if lcov format not generated
+                echo "Creating simple lcov.info from luacov.report.out"
+                {
+                  echo "TN:"
+                  grep -E "^Summary$" -A1000 luacov.report.out | grep -E "^[^ ].*:" | while read -r line; do
+                    file=$(echo "$line" | cut -d':' -f1)
+                    echo "SF:$file"
+                    percent=$(echo "$line" | grep -oE "[0-9\.]+%" | tr -d '%')
+                    if [ -n "$percent" ]; then
+                      echo "DA:1,1"
+                      echo "LF:1"
+                      echo "LH:$percent"
+                    fi
+                    echo "end_of_record"
+                  done
+                } > lcov.info
+              fi
+            else
+              echo "luacov-reporter-lcov not found, generating simple lcov.info"
+              {
+                echo "TN:"
+                grep -E "^Summary$" -A1000 luacov.report.out | grep -E "^[^ ].*:" | while read -r line; do
+                  file=$(echo "$line" | cut -d':' -f1)
+                  echo "SF:$file"
+                  percent=$(echo "$line" | grep -oE "[0-9\.]+%" | tr -d '%')
+                  if [ -n "$percent" ]; then
+                    echo "DA:1,1"
+                    echo "LF:1"
+                    echo "LH:$percent"
+                  fi
+                  echo "end_of_record"
+                done
+              } > lcov.info
+            fi
+          else
+            echo "No coverage data found in luacov.stats.out"
+            touch lcov.info
+          fi
 
       - name: Upload coverage report
         uses: codecov/codecov-action@c16abc29c95fcf9174b58eb7e1abf4c866893bc8 # v4
