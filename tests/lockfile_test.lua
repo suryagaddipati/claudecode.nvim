@@ -22,7 +22,7 @@ if not _G.vim then
         return 1
       end,
     },
-    notify = function(msg, level, opts) end,
+    notify = function(_, _, _) end,
     log = {
       levels = {
         NONE = 0,

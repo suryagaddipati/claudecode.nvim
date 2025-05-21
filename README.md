@@ -1,6 +1,6 @@
 # Claude Code Neovim Integration
 
-[![Tests](https://github.com/ThomasK33/claudecode.nvim/actions/workflows/test.yml/badge.svg)](https://github.com/ThomasK33/claudecode.nvim/actions/workflows/test.yml)
+[![Tests](https://github.com/coder/claudecode.nvim/actions/workflows/test.yml/badge.svg)](https://github.com/coder/claudecode.nvim/actions/workflows/test.yml)
 ![Neovim version](https://img.shields.io/badge/Neovim-0.8%2B-green)
 ![Status](https://img.shields.io/badge/Status-alpha-orange)
 
@@ -31,7 +31,7 @@ Note: The terminal feature can use `Snacks.nvim` or the native Neovim terminal. 
 
 ```lua
 {
-  "ThomasK33/claudecode.nvim",
+  "coder/claudecode.nvim",
   dependencies = {
     "nvim-lua/plenary.nvim",
     "folke/snacks.nvim", -- Added dependency
@@ -50,7 +50,7 @@ Note: The terminal feature can use `Snacks.nvim` or the native Neovim terminal. 
 
 ```lua
 use {
-  "ThomasK33/claudecode.nvim",
+  "coder/claudecode.nvim",
   requires = {
     "nvim-lua/plenary.nvim",
     "folke/snacks.nvim", -- Added dependency
@@ -70,7 +70,7 @@ Add the following to your `lua/plugins/claudecode.lua`:
 ```lua
 return {
   {
-    "ThomasK33/claudecode.nvim",
+    "coder/claudecode.nvim",
     dependencies = {
       "nvim-lua/plenary.nvim",
       "folke/snacks.nvim", -- Added dependency
@@ -246,7 +246,7 @@ This project uses [Nix](https://nixos.org/) for development environment manageme
 2. Clone the repository:
 
    ```bash
-   git clone https://github.com/ThomasK33/claudecode.nvim
+   git clone https://github.com/coder/claudecode.nvim
    cd claudecode.nvim
    ```
 

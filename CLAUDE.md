@@ -100,7 +100,7 @@ Current priorities for development are:
 - Document LazyVim integration in README.md
 - Include clear local development instructions
 - Provide comprehensive installation guides
-- Document proper repository structure for ThomasK33/claudecode.nvim
+- Document proper repository structure for coder/claudecode.nvim
 
 ## User Commands
 

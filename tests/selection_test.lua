@@ -187,7 +187,7 @@ if not _G.vim then
     },
 
     -- Added notify and log mocks
-    notify = function(msg, level, opts) end,
+    notify = function(_, _, _) end,
     log = {
       levels = {
         NONE = 0,

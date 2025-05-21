@@ -170,7 +170,7 @@ local function open_fallback_terminal(command, effective_term_config)
   -- Note: vim.api.nvim_win_set_width is not needed here again as [N]vsplit handles it.
 
   managed_fallback_terminal_jobid = vim.fn.termopen(command, {
-    on_exit = function(job_id, code, event)
+    on_exit = function(job_id, _, _)
       vim.schedule(function()
         if job_id == managed_fallback_terminal_jobid then
           -- Ensure we are operating on the correct window and buffer before closing

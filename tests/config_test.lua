@@ -14,7 +14,7 @@ _G.vim = { ---@type vim_global_api
     end
     return copy
   end,
-  notify = function(msg, level, opts) end,
+  notify = function(_, _, _) end,
   log = {
     levels = {
       NONE = 0,
