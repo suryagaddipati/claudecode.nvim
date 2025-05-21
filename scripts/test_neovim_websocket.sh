@@ -7,6 +7,7 @@ set -e
 
 # Source the library
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=./lib_claude.sh
 source "$SCRIPT_DIR/lib_claude.sh"
 
 # Configuration
@@ -291,8 +292,8 @@ test_connection() {
   echo
 
   # Clear previous log files
-  >"$log_file"
-  >"$pretty_log"
+  true >"$log_file"
+  true >"$pretty_log"
 
   echo "Connecting to WebSocket server at ws://127.0.0.1:$WEBSOCKET_PORT/"
   echo "Sending connection message..."
@@ -305,10 +306,12 @@ test_connection() {
   # Log the request and response
   echo "$MCP_CONNECT" >>"$log_file"
   echo "$response" >>"$log_file"
-  echo -e "\n--- Connection Request ---" >>"$pretty_log"
-  echo "$MCP_CONNECT" | jq '.' >>"$pretty_log"
-  echo -e "\n--- Connection Response ---" >>"$pretty_log"
-  echo "$response" | jq '.' >>"$pretty_log" 2>/dev/null || echo "Invalid JSON: $response" >>"$pretty_log"
+  {
+    echo -e "\n--- Connection Request ---"
+    echo "$MCP_CONNECT" | jq '.'
+    echo -e "\n--- Connection Response ---"
+    echo "$response" | jq '.' 2>/dev/null || echo "Invalid JSON: $response"
+  } >>"$pretty_log"
 
   # Display and analyze the response
   echo "Response:"
@@ -319,8 +322,10 @@ test_connection() {
     echo "✅ Received response to our connection request!"
 
     # Extract server info if present
-    local server_info=$(echo "$response" | jq -r '.result.serverInfo // "Not provided"' 2>/dev/null)
-    local protocol=$(echo "$response" | jq -r '.result.protocolVersion // "Not provided"' 2>/dev/null)
+    local server_info
+    server_info=$(echo "$response" | jq -r '.result.serverInfo // "Not provided"' 2>/dev/null)
+    local protocol
+    protocol=$(echo "$response" | jq -r '.result.protocolVersion // "Not provided"' 2>/dev/null)
 
     echo "Server info: $server_info"
     echo "Protocol version: $protocol"
@@ -345,8 +350,8 @@ test_tools_list() {
   echo
 
   # Clear previous log files
-  >"$log_file"
-  >"$pretty_log"
+  true >"$log_file"
+  true >"$pretty_log"
 
   # Create tools/list request
   local request='{
@@ -367,23 +372,28 @@ test_tools_list() {
   # Log the request and response
   echo "$request" >>"$log_file"
   echo "$response" >>"$log_file"
-  echo -e "\n--- Tools List Request ---" >>"$pretty_log"
-  echo "$request" | jq '.' >>"$pretty_log"
-  echo -e "\n--- Tools List Response ---" >>"$pretty_log"
-  echo "$response" | jq '.' >>"$pretty_log" 2>/dev/null || echo "Invalid JSON: $response" >>"$pretty_log"
+  {
+    echo -e "\n--- Tools List Request ---"
+    echo "$request" | jq '.'
+    echo -e "\n--- Tools List Response ---"
+    echo "$response" | jq '.' 2>/dev/null || echo "Invalid JSON: $response"
+  } >>"$pretty_log"
 
   # Display and analyze the response
   echo "Response received."
 
   if echo "$response" | grep -q '"error"'; then
-    local error_code=$(echo "$response" | jq -r '.error.code // "unknown"' 2>/dev/null)
-    local error_message=$(echo "$response" | jq -r '.error.message // "unknown"' 2>/dev/null)
+    local error_code
+    error_code=$(echo "$response" | jq -r '.error.code // "unknown"' 2>/dev/null)
+    local error_message
+    error_message=$(echo "$response" | jq -r '.error.message // "unknown"' 2>/dev/null)
     echo "❌ Error response: Code $error_code - $error_message"
   elif echo "$response" | grep -q '"result"'; then
     echo "✅ Successful response with tools list!"
 
     # Extract and count tools
-    local tools_count=$(echo "$response" | jq '.result.tools | length' 2>/dev/null)
+    local tools_count
+    tools_count=$(echo "$response" | jq '.result.tools | length' 2>/dev/null)
     echo "Found $tools_count tools in the response."
 
     # List the tool names
@@ -410,8 +420,8 @@ test_selection() {
   echo
 
   # Clear previous log files
-  >"$log_file"
-  >"$pretty_log"
+  true >"$log_file"
+  true >"$pretty_log"
 
   echo "Connecting to WebSocket server at ws://127.0.0.1:$WEBSOCKET_PORT/"
   echo "Listening for selection_changed events for $LISTEN_DURATION seconds..."
@@ -424,7 +434,7 @@ test_selection() {
     echo '{"jsonrpc":"2.0","id":"selection-test","method":"mcp.connect","params":{"protocolVersion":"2024-11-05"}}'
 
     # Keep the connection open
-    sleep $LISTEN_DURATION
+    sleep "$LISTEN_DURATION"
   ) | websocat "ws://127.0.0.1:$WEBSOCKET_PORT/" | tee >(cat >"$log_file") | {
     # Process received messages
     local selection_count=0
@@ -436,9 +446,12 @@ test_selection() {
         echo "📝 Received selection_changed notification #$selection_count"
 
         # Extract some details
-        local is_empty=$(echo "$line" | jq -r '.params.selection.isEmpty // "unknown"' 2>/dev/null)
-        local file_path=$(echo "$line" | jq -r '.params.filePath // "unknown"' 2>/dev/null)
-        local text_length=$(echo "$line" | jq -r '.params.text | length // 0' 2>/dev/null)
+        local is_empty
+        is_empty=$(echo "$line" | jq -r '.params.selection.isEmpty // "unknown"' 2>/dev/null)
+        local file_path
+        file_path=$(echo "$line" | jq -r '.params.filePath // "unknown"' 2>/dev/null)
+        local text_length
+        text_length=$(echo "$line" | jq -r '.params.text | length // 0' 2>/dev/null)
 
         echo "  File: $file_path"
         echo "  Empty selection: $is_empty"

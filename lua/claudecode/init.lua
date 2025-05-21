@@ -7,13 +7,20 @@
 --- @module 'claudecode'
 local M = {}
 
---- The current version of the plugin
+--- @class ClaudeCode.Version
+--- @field major integer Major version number
+--- @field minor integer Minor version number
+--- @field patch integer Patch version number
+--- @field prerelease string|nil Prerelease identifier (e.g., "alpha", "beta")
+--- @field string fun(self: ClaudeCode.Version):string Returns the formatted version string
+
+--- The current version of the plugin.
+--- @type ClaudeCode.Version
 M.version = {
   major = 0,
   minor = 1,
   patch = 0,
   prerelease = "alpha",
-  -- Return formatted version string
   string = function(self)
     local version = string.format("%d.%d.%d", self.major, self.minor, self.patch)
     if self.prerelease then
@@ -23,25 +30,31 @@ M.version = {
   end,
 }
 
+--- @class ClaudeCode.Config
+--- @field port_range {min: integer, max: integer} Port range for WebSocket server.
+--- @field auto_start boolean Auto-start WebSocket server on Neovim startup.
+--- @field terminal_cmd string|nil Custom terminal command to use when launching Claude.
+--- @field log_level "trace"|"debug"|"info"|"warn"|"error" Log level.
+--- @field track_selection boolean Enable sending selection updates to Claude.
+
 -- Default configuration
+--- @type ClaudeCode.Config
 local default_config = {
-  -- Port range for WebSocket server
   port_range = { min = 10000, max = 65535 },
-
-  -- Auto-start WebSocket server on Neovim startup
   auto_start = false,
-
-  -- Custom terminal command to use when launching Claude
   terminal_cmd = nil,
-
-  -- Log level (trace, debug, info, warn, error)
   log_level = "info",
-
-  -- Enable sending selection updates to Claude
   track_selection = true,
 }
 
+--- @class ClaudeCode.State
+--- @field config ClaudeCode.Config The current plugin configuration.
+--- @field server table|nil The WebSocket server instance.
+--- @field port number|nil The port the server is running on.
+--- @field initialized boolean Whether the plugin has been initialized.
+
 -- Plugin state
+--- @type ClaudeCode.State
 M.state = {
   config = vim.deepcopy(default_config),
   server = nil,
@@ -53,22 +66,34 @@ M.state = {
 ---@param opts table|nil Optional configuration table to override defaults
 ---@return table The plugin module
 function M.setup(opts)
-  -- Merge user config with defaults
   opts = opts or {}
-  M.state.config = vim.tbl_deep_extend("force", default_config, opts)
 
-  -- Initialize the logger
-  -- TODO: Set up logger with configured log level
-
-  -- Auto-start if configured
-  if M.state.config.auto_start then
-    M.start()
+  -- Separate terminal config from main config
+  local terminal_opts = nil
+  if opts.terminal then
+    terminal_opts = opts.terminal
+    opts.terminal = nil -- Remove from main opts to avoid polluting M.state.config
   end
 
-  -- Set up commands
+  M.state.config = vim.tbl_deep_extend("force", vim.deepcopy(default_config), opts)
+
+  if terminal_opts then
+    local terminal_setup_ok, terminal_module = pcall(require, "claudecode.terminal")
+    if terminal_setup_ok then
+      terminal_module.setup(terminal_opts)
+    else
+      vim.notify("Failed to load claudecode.terminal module for setup.", vim.log.levels.ERROR)
+    end
+  end
+
+  -- TODO: Set up logger with configured log level
+
+  if M.state.config.auto_start then
+    M.start(false) -- Suppress notification on auto-start
+  end
+
   M._create_commands()
 
-  -- Set up auto-shutdown on Neovim exit
   vim.api.nvim_create_autocmd("VimLeavePre", {
     group = vim.api.nvim_create_augroup("ClaudeCodeShutdown", { clear = true }),
     callback = function()
@@ -84,17 +109,19 @@ function M.setup(opts)
 end
 
 --- Start the Claude Code integration
+---@param show_startup_notification? boolean Whether to show a notification upon successful startup (defaults to true)
 ---@return boolean success Whether the operation was successful
 ---@return number|string port_or_error The WebSocket port if successful, or error message if failed
-function M.start()
+function M.start(show_startup_notification)
+  if show_startup_notification == nil then
+    show_startup_notification = true
+  end
   if M.state.server then
-    -- Already running
     local msg = "Claude Code integration is already running on port " .. tostring(M.state.port)
     vim.notify(msg, vim.log.levels.WARN)
     return false, "Already running"
   end
 
-  -- Initialize the WebSocket server
   local server = require("claudecode.server")
   local success, result = server.start(M.state.config)
 
@@ -106,7 +133,6 @@ function M.start()
   M.state.server = server
   M.state.port = result
 
-  -- Create lock file
   local lockfile = require("claudecode.lockfile")
   local lock_success, lock_result = lockfile.create(M.state.port)
 
@@ -120,15 +146,15 @@ function M.start()
     return false, lock_result
   end
 
-  -- Set up selection tracking
   if M.state.config.track_selection then
     local selection = require("claudecode.selection")
     selection.enable(server)
   end
 
-  vim.notify("Claude Code integration started on port " .. tostring(M.state.port), vim.log.levels.INFO)
+  if show_startup_notification then
+    vim.notify("Claude Code integration started on port " .. tostring(M.state.port), vim.log.levels.INFO)
+  end
 
-  -- Return the port number as a success indicator
   return true, M.state.port
 end
 
@@ -137,12 +163,10 @@ end
 ---@return string? error Error message if operation failed
 function M.stop()
   if not M.state.server then
-    -- Not running
     vim.notify("Claude Code integration is not running", vim.log.levels.WARN)
     return false, "Not running"
   end
 
-  -- Remove lock file
   local lockfile = require("claudecode.lockfile")
   local lock_success, lock_error = lockfile.remove(M.state.port)
 
@@ -151,13 +175,11 @@ function M.stop()
     -- Continue with shutdown even if lock file removal fails
   end
 
-  -- Disable selection tracking
   if M.state.config.track_selection then
     local selection = require("claudecode.selection")
     selection.disable()
   end
 
-  -- Stop the WebSocket server
   local success, error = M.state.server.stop()
 
   if not success then
@@ -165,7 +187,6 @@ function M.stop()
     return false, error
   end
 
-  -- Reset state
   M.state.server = nil
   M.state.port = nil
 
@@ -190,7 +211,6 @@ function M._create_commands()
   })
 
   vim.api.nvim_create_user_command("ClaudeCodeStatus", function()
-    -- Show status
     if M.state.server and M.state.port then
       vim.notify("Claude Code integration is running on port " .. tostring(M.state.port), vim.log.levels.INFO)
     else
@@ -201,7 +221,6 @@ function M._create_commands()
   })
 
   vim.api.nvim_create_user_command("ClaudeCodeSend", function()
-    -- Send current selection to Claude
     if not M.state.server then
       vim.notify("Claude Code integration is not running", vim.log.levels.ERROR)
       return
@@ -226,5 +245,4 @@ function M.get_version()
   }
 end
 
--- Return the module
 return M

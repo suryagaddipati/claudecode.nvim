@@ -12,7 +12,7 @@ A Neovim plugin that integrates with Claude Code CLI to provide a seamless AI co
 - 🔍 Selection tracking to provide context to Claude
 - 🛠️ Integration with Neovim's buffer and window management
 - 📝 Support for file operations and diagnostics
-- 🖥️ Terminal integration for launching Claude with proper environment
+- 🖥️ Interactive vertical split terminal for Claude sessions (via `folke/snacks.nvim`)
 - 🔒 Automatic cleanup on exit - server shutdown and lockfile removal
 
 ## Requirements
@@ -20,7 +20,10 @@ A Neovim plugin that integrates with Claude Code CLI to provide a seamless AI co
 - Neovim >= 0.8.0
 - Claude Code CLI installed and in your PATH
 - Lua >= 5.1
+- **Required for terminal integration:** [folke/snacks.nvim](https://github.com/folke/snacks.nvim) - Terminal management plugin
 - Optional: plenary.nvim for additional utilities
+
+Note: The terminal feature requires Snacks.nvim to be installed and available. If not available, the terminal commands will display an error message, but the core Claude Code integration will still function.
 
 ## Installation
 
@@ -31,8 +34,11 @@ A Neovim plugin that integrates with Claude Code CLI to provide a seamless AI co
   "ThomasK33/claudecode.nvim",
   dependencies = {
     "nvim-lua/plenary.nvim",
+    "folke/snacks.nvim", -- Added dependency
   },
   config = function()
+    -- Ensure snacks is loaded if you want to use the terminal immediately
+    -- require("snacks") -- Or handle this in your init.lua
     require("claudecode").setup({
       -- Optional configuration
     })
@@ -45,7 +51,10 @@ A Neovim plugin that integrates with Claude Code CLI to provide a seamless AI co
 ```lua
 use {
   "ThomasK33/claudecode.nvim",
-  requires = { "nvim-lua/plenary.nvim" },
+  requires = {
+    "nvim-lua/plenary.nvim",
+    "folke/snacks.nvim", -- Added dependency
+  },
   config = function()
     require("claudecode").setup({
       -- Optional configuration
@@ -64,13 +73,28 @@ return {
     "ThomasK33/claudecode.nvim",
     dependencies = {
       "nvim-lua/plenary.nvim",
+      "folke/snacks.nvim", -- Added dependency
     },
     opts = {
-      -- Optional configuration
+      -- Optional configuration for claudecode main
+      -- Example:
+      -- terminal_cmd = "claude --magic-flag",
+
+      -- Configuration for the interactive terminal can also be nested here:
+      terminal = {
+        split_side = "left",            -- "left" or "right"
+        split_width_percentage = 0.4, -- 0.0 to 1.0
+      },
     },
+    -- The main require("claudecode").setup(opts) will handle passing
+    -- opts.terminal to the terminal module's setup.
+    config = true, -- or function(_, opts) require("claudecode").setup(opts) end
     keys = {
       { "<leader>cc", "<cmd>ClaudeCodeStart<cr>", desc = "Start Claude Code" },
       { "<leader>cs", "<cmd>ClaudeCodeSend<cr>", desc = "Send to Claude Code" },
+      { "<leader>ct", "<cmd>ClaudeCode<cr>", desc = "Toggle Claude Terminal" },
+      { "<leader>co", "<cmd>ClaudeCodeOpen<cr>", desc = "Open Claude Terminal" },
+      { "<leader>cx", "<cmd>ClaudeCodeClose<cr>", desc = "Close Claude Terminal" },
     },
   },
 }
@@ -87,16 +111,27 @@ return {
     name = "claudecode.nvim",
     dependencies = {
       "nvim-lua/plenary.nvim",
+      "folke/snacks.nvim", -- Added dependency
     },
     dev = true,
     opts = {
-      -- Development configuration
+      -- Development configuration for claudecode main
       log_level = "debug",
       auto_start = true,  -- Optional: auto-start the server
+
+      -- Example terminal configuration for dev:
+      terminal = {
+        split_side = "right",
+        split_width_percentage = 0.25,
+      },
     },
+    config = true,
     keys = {
       { "<leader>cc", "<cmd>ClaudeCodeStart<cr>", desc = "Start Claude Code" },
       { "<leader>cs", "<cmd>ClaudeCodeSend<cr>", desc = "Send to Claude Code" },
+      { "<leader>ct", "<cmd>ClaudeCode<cr>", desc = "Toggle Claude Terminal" },
+      { "<leader>co", "<cmd>ClaudeCodeOpen<cr>", desc = "Open Claude Terminal" },
+      { "<leader>cx", "<cmd>ClaudeCodeClose<cr>", desc = "Close Claude Terminal" },
     },
   },
 }
@@ -120,13 +155,24 @@ require("claudecode").setup({
   auto_start = false,
 
   -- Custom terminal command to use when launching Claude
-  terminal_cmd = nil, -- e.g., "toggleterm"
+  -- This command is used by the new interactive terminal feature.
+  -- If nil or empty, it defaults to "claude".
+  terminal_cmd = nil, -- e.g., "my_claude_wrapper_script" or "claude --project-foo"
 
   -- Log level (trace, debug, info, warn, error)
   log_level = "info",
 
   -- Enable sending selection updates to Claude
   track_selection = true,
+
+  -- Configuration for the interactive terminal (passed to claudecode.terminal.setup by the main setup function)
+  terminal = {
+    -- Side for the vertical split ('left' or 'right')
+    split_side = "right", -- Default
+
+    -- Width of the terminal as a percentage of total editor width (0.0 to 1.0)
+    split_width_percentage = 0.30, -- Default
+  }
 })
 ```
 
@@ -154,6 +200,9 @@ require("claudecode").setup({
 - `:ClaudeCodeStop` - Stop the server
 - `:ClaudeCodeStatus` - Show connection status
 - `:ClaudeCodeSend` - Send current selection to Claude
+- `:ClaudeCode` - Toggle the Claude Code interactive terminal window
+- `:ClaudeCodeOpen` - Open (or focus) the Claude Code terminal window
+- `:ClaudeCodeClose` - Close the Claude Code terminal window
 
 ## Keymaps
 
@@ -162,6 +211,10 @@ No default keymaps are provided. Add your own in your configuration:
 ```lua
 vim.keymap.set("n", "<leader>cc", "<cmd>ClaudeCodeStart<cr>", { desc = "Start Claude Code" })
 vim.keymap.set({"n", "v"}, "<leader>cs", "<cmd>ClaudeCodeSend<cr>", { desc = "Send to Claude Code" })
++vim.keymap.set("n", "<leader>ct", "<cmd>ClaudeCode<cr>", { desc = "Toggle Claude Terminal" })
++-- Or more specific maps:
++-- vim.keymap.set("n", "<leader>co", "<cmd>ClaudeCodeOpen<cr>", { desc = "Open Claude Terminal" })
++-- vim.keymap.set("n", "<leader>cx", "<cmd>ClaudeCodeClose<cr>", { desc = "Close Claude Terminal" })
 ```
 
 ## Architecture

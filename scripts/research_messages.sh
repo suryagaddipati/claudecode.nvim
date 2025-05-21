@@ -8,6 +8,7 @@ set -e
 
 # Source the library
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=./lib_claude.sh
 source "$SCRIPT_DIR/lib_claude.sh"
 
 # Configuration
@@ -82,8 +83,8 @@ send_test_message() {
 }
 
 # Clear previous log files
->"$LOG_FILE"
->"$PRETTY_LOG"
+true >"$LOG_FILE"
+true >"$PRETTY_LOG"
 
 # Now that we have the port, display connection information
 echo "Connecting to WebSocket server at ws://127.0.0.1:$WEBSOCKET_PORT/"
@@ -98,7 +99,7 @@ echo
   echo "$MCP_CONNECT"
 
   # Keep the connection open
-  sleep $TIMEOUT
+  sleep "$TIMEOUT"
 ) | websocat "ws://127.0.0.1:$WEBSOCKET_PORT/" | tee >(cat >"$LOG_FILE") | while IFS= read -r line; do
   # Print each message with timestamp
   echo "[$(date +"%H:%M:%S")] Received: $line"

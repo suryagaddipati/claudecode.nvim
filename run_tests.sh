@@ -13,8 +13,8 @@ echo "Found test files:"
 echo "$TEST_FILES"
 
 if [ -n "$TEST_FILES" ]; then
-  # Pass each test file individually to busted
-  busted -v $TEST_FILES
+  # Pass test files to busted
+  busted -v $(echo "$TEST_FILES")
 else
   echo "No test files found"
 fi

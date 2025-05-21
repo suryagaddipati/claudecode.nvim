@@ -8,7 +8,7 @@ check:
 	@echo "Checking Lua files for syntax errors..."
 	@find lua -name "*.lua" -type f -exec lua -e "assert(loadfile('{}'))" \;
 	@echo "Running luacheck..."
-	@luacheck lua/ --no-unused-args --no-max-line-length || echo "⚠️  Luacheck warnings - continuing anyway"
+	@luacheck lua/ tests/ --no-unused-args --no-max-line-length
 
 # Format all files
 format:

@@ -21,7 +21,11 @@
             nixpkgs-fmt.enable = true; # Nix formatter
             prettier.enable = true; # Markdown/YAML/JSON formatter
             shfmt.enable = true; # Shell formatter
+            actionlint.enable = true; # GitHub Actions linter
+            zizmor.enable = true; # GitHub Actions security analyzer
+            shellcheck.enable = true; # Shell script analyzer
           };
+          settings.formatter.shellcheck.options = [ "--exclude=SC1091,SC2016" ];
         };
       in
       {

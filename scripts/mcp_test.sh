@@ -236,33 +236,40 @@ test_tools_list() {
   echo
 
   # Send request and capture response
-  local params=$(ws_format_json '{}')
+  local params
+  params=$(ws_format_json '{}')
   local response
   response=$(ws_rpc_request "tools/list" "$params" "tools-list-test" "$CONN_ID" "$TIMEOUT")
 
   # Create the full request for logging
-  local request=$(ws_create_message "tools/list" "$params" "tools-list-test")
+  local request
+  request=$(ws_create_message "tools/list" "$params" "tools-list-test")
 
   # Log the request and response
   echo "$request" >>"$log_file"
   echo "$response" >>"$log_file"
-  echo -e "\n--- Tools List Request ---" >>"$pretty_log"
-  echo "$request" | jq '.' >>"$pretty_log"
-  echo -e "\n--- Tools List Response ---" >>"$pretty_log"
-  echo "$response" | jq '.' >>"$pretty_log" 2>/dev/null || echo "Invalid JSON: $response" >>"$pretty_log"
+  {
+    echo -e "\n--- Tools List Request ---"
+    echo "$request" | jq '.'
+    echo -e "\n--- Tools List Response ---"
+    echo "$response" | jq '.' 2>/dev/null || echo "Invalid JSON: $response"
+  } >>"$pretty_log"
 
   # Display and analyze the response
   echo "Response received."
 
   if echo "$response" | grep -q '"error"'; then
-    local error_code=$(echo "$response" | jq -r '.error.code // "unknown"' 2>/dev/null)
-    local error_message=$(echo "$response" | jq -r '.error.message // "unknown"' 2>/dev/null)
+    local error_code
+    error_code=$(echo "$response" | jq -r '.error.code // "unknown"' 2>/dev/null)
+    local error_message
+    error_message=$(echo "$response" | jq -r '.error.message // "unknown"' 2>/dev/null)
     echo "❌ Error response: Code $error_code - $error_message"
   elif echo "$response" | grep -q '"result"'; then
     echo "✅ Successful response with tools list!"
 
     # Extract and count tools
-    local tools_count=$(echo "$response" | jq '.result.tools | length' 2>/dev/null)
+    local tools_count
+    tools_count=$(echo "$response" | jq '.result.tools | length' 2>/dev/null)
     echo "Found $tools_count tools in the response."
 
     # Format and display tools
@@ -308,8 +315,10 @@ test_tools_list() {
       # Create helper function to format tool details
       format_tool_details() {
         local tool=$1
-        local name=$(echo "$tool" | jq -r '.name')
-        local desc=$(echo "$tool" | jq -r '.description // ""')
+        local name
+        name=$(echo "$tool" | jq -r '.name')
+        local desc
+        desc=$(echo "$tool" | jq -r '.description // ""')
 
         # Print tool name and description (truncated if too long)
         echo "  - $name"
@@ -440,21 +449,26 @@ test_tool_invoke() {
     response=$(ws_rpc_request "$method" "$params" "$id" "$CONN_ID" "$TIMEOUT")
 
     # Create full request for logging
-    local request=$(ws_create_message "$method" "$params" "$id")
+    local request
+    request=$(ws_create_message "$method" "$params" "$id")
     echo "Request: $request"
 
     # Log the request and response
     echo "$request" >>"$log_file"
     echo "$response" >>"$log_file"
-    echo -e "\n--- Tool Invoke Request: $method (ID: $id) ---" >>"$pretty_log"
-    echo "$request" | jq '.' >>"$pretty_log"
-    echo -e "\n--- Tool Invoke Response: $method (ID: $id) ---" >>"$pretty_log"
-    echo "$response" | jq '.' >>"$pretty_log" 2>/dev/null || echo "Invalid JSON: $response" >>"$pretty_log"
+    {
+      echo -e "\n--- Tool Invoke Request: $method (ID: $id) ---"
+      echo "$request" | jq '.'
+      echo -e "\n--- Tool Invoke Response: $method (ID: $id) ---"
+      echo "$response" | jq '.' 2>/dev/null || echo "Invalid JSON: $response"
+    } >>"$pretty_log"
 
     # Display and analyze the response
     if echo "$response" | grep -q '"error"'; then
-      local error_code=$(echo "$response" | jq -r '.error.code // "unknown"' 2>/dev/null)
-      local error_message=$(echo "$response" | jq -r '.error.message // "unknown"' 2>/dev/null)
+      local error_code
+      error_code=$(echo "$response" | jq -r '.error.code // "unknown"' 2>/dev/null)
+      local error_message
+      error_message=$(echo "$response" | jq -r '.error.message // "unknown"' 2>/dev/null)
       echo "❌ Error response: Code $error_code - $error_message"
     elif echo "$response" | grep -q '"result"'; then
       echo "✅ Successful response with result"
@@ -530,21 +544,26 @@ test_methods() {
     response=$(ws_rpc_request "$method" "$params" "$id" "$CONN_ID" "$TIMEOUT")
 
     # Create full request for logging
-    local request=$(ws_create_message "$method" "$params" "$id")
+    local request
+    request=$(ws_create_message "$method" "$params" "$id")
     echo "Request: $request"
 
     # Log the request and response
     echo "$request" >>"$log_file"
     echo "$response" >>"$log_file"
-    echo -e "\n--- Method Request: $method (ID: $id) ---" >>"$pretty_log"
-    echo "$request" | jq '.' >>"$pretty_log" 2>/dev/null
-    echo -e "\n--- Method Response: $method (ID: $id) ---" >>"$pretty_log"
-    echo "$response" | jq '.' >>"$pretty_log" 2>/dev/null || echo "Invalid JSON: $response" >>"$pretty_log"
+    {
+      echo -e "\n--- Method Request: $method (ID: $id) ---"
+      echo "$request" | jq '.' 2>/dev/null
+      echo -e "\n--- Method Response: $method (ID: $id) ---"
+      echo "$response" | jq '.' 2>/dev/null || echo "Invalid JSON: $response"
+    } >>"$pretty_log"
 
     # Display and analyze the response
     if echo "$response" | grep -q '"error"'; then
-      local error_code=$(echo "$response" | jq -r '.error.code // "unknown"' 2>/dev/null)
-      local error_message=$(echo "$response" | jq -r '.error.message // "unknown"' 2>/dev/null)
+      local error_code
+      error_code=$(echo "$response" | jq -r '.error.code // "unknown"' 2>/dev/null)
+      local error_message
+      error_message=$(echo "$response" | jq -r '.error.message // "unknown"' 2>/dev/null)
       echo "❌ Error response: Code $error_code - $error_message"
     elif echo "$response" | grep -q '"result"'; then
       echo "✅ Successful response with result"
@@ -577,9 +596,12 @@ handle_selection_test() {
   echo "📝 Received selection_changed notification #$count"
 
   # Extract some details
-  local is_empty=$(echo "$message" | jq -r '.params.selection.isEmpty // "unknown"' 2>/dev/null)
-  local file_path=$(echo "$message" | jq -r '.params.filePath // "unknown"' 2>/dev/null)
-  local text_length=$(echo "$message" | jq -r '.params.text | length // 0' 2>/dev/null)
+  local is_empty
+  is_empty=$(echo "$message" | jq -r '.params.selection.isEmpty // "unknown"' 2>/dev/null)
+  local file_path
+  file_path=$(echo "$message" | jq -r '.params.filePath // "unknown"' 2>/dev/null)
+  local text_length
+  text_length=$(echo "$message" | jq -r '.params.text | length // 0' 2>/dev/null)
 
   echo "  File: $file_path"
   echo "  Empty selection: $is_empty"
@@ -648,7 +670,8 @@ test_selection() {
   echo "Connection established. Waiting for $listen_duration seconds to collect selection events..."
 
   # Wait for the specified duration
-  local start_time=$(date +%s)
+  local start_time
+  start_time=$(date +%s)
   local end_time=$((start_time + listen_duration))
 
   # Display a countdown
@@ -663,7 +686,8 @@ test_selection() {
   ws_stop_listener "$CONN_ID"
 
   # Count recorded notifications from the log file
-  local selection_count=$(grep -c '"method":"selection_changed"' "$log_file")
+  local selection_count
+  selection_count=$(grep -c '"method":"selection_changed"' "$log_file")
 
   echo "Received $selection_count selection_changed notifications."
   echo "=== Selection Notification Test Completed ==="

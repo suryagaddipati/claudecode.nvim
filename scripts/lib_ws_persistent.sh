@@ -77,12 +77,14 @@ ws_is_connected() {
 
   # Get connection info
   local info="${WS_CONNECTIONS[$conn_id]}"
-  local pgid=$(echo "$info" | cut -d'|' -f1)
-  local log_dir=$(echo "$info" | cut -d'|' -f2)
+  local pgid
+  pgid=$(echo "$info" | cut -d'|' -f1)
+  local log_dir
+  log_dir=$(echo "$info" | cut -d'|' -f2)
   local pid_file="$log_dir/pid"
 
   # Check if process is running
-  if [[ -f $pid_file ]] && kill -0 $(cat "$pid_file") 2>/dev/null; then
+  if [[ -f $pid_file ]] && kill -0 "$(cat "$pid_file")" 2>/dev/null; then
     return 0
   else
     return 1
@@ -101,19 +103,22 @@ ws_disconnect() {
 
   # Get connection info
   local info="${WS_CONNECTIONS[$conn_id]}"
-  local pgid=$(echo "$info" | cut -d'|' -f1)
-  local log_dir=$(echo "$info" | cut -d'|' -f2)
+  local pgid
+  pgid=$(echo "$info" | cut -d'|' -f1)
+  local log_dir
+  log_dir=$(echo "$info" | cut -d'|' -f2)
   local pid_file="$log_dir/pid"
 
   # Kill the process group
   if [[ -f $pid_file ]]; then
-    local pid=$(cat "$pid_file")
+    local pid
+    pid=$(cat "$pid_file")
     kill "$pid" 2>/dev/null || kill -9 "$pid" 2>/dev/null
   fi
 
   # Remove from tracking
-  unset WS_CONNECTIONS[$conn_id]
-  unset WS_REQUEST_FILES[$conn_id]
+  unset "WS_CONNECTIONS[$conn_id]"
+  unset "WS_REQUEST_FILES[$conn_id]"
 
   return 0
 }
@@ -136,12 +141,14 @@ ws_request() {
 
   # Get connection info
   local info="${WS_CONNECTIONS[$conn_id]}"
-  local log_dir=$(echo "$info" | cut -d'|' -f2)
+  local log_dir
+  log_dir=$(echo "$info" | cut -d'|' -f2)
   local response_file="$log_dir/response.json"
   local temp_response_file="${log_dir}/temp_response.$$"
 
   # Extract message ID for matching response
-  local id=$(echo "$message" | jq -r '.id // empty' 2>/dev/null)
+  local id
+  id=$(echo "$message" | jq -r '.id // empty' 2>/dev/null)
 
   if [[ -z $id ]]; then
     echo >&2 "Error: Message has no ID field"
@@ -149,13 +156,14 @@ ws_request() {
   fi
 
   # Save current position in response file
-  local start_pos=$(wc -c <"$response_file")
+  local start_pos
+  start_pos=$(wc -c <"$response_file")
 
   # Send the message
   echo "$message" >>"$request_file"
 
   # Create empty temp file
-  >"$temp_response_file"
+  true >"$temp_response_file"
 
   # Wait for response with matching ID
   local end_time=$(($(date +%s) + timeout))
@@ -169,7 +177,8 @@ ws_request() {
     # Check for new data in the response file
     if [[ -s $response_file && $(wc -c <"$response_file") -gt $start_pos ]]; then
       # Extract new responses
-      local new_data=$(tail -c +$((start_pos + 1)) "$response_file")
+      local new_data
+      new_data=$(tail -c +$((start_pos + 1)) "$response_file")
 
       # Write to temp file first to allow process substitution to work correctly
       echo "$new_data" >"$temp_response_file"
@@ -184,7 +193,8 @@ ws_request() {
         echo "Checking response: $(echo "$line" | jq -r '.id // "no-id"')" >>"$log_dir/debug.log"
 
         # Parse response ID
-        local response_id=$(echo "$line" | jq -r '.id // empty' 2>/dev/null)
+        local response_id
+        response_id=$(echo "$line" | jq -r '.id // empty' 2>/dev/null)
 
         if [[ $response_id == "$id" ]]; then
           # Found matching response - need to echo outside the loop
@@ -319,21 +329,24 @@ ws_start_listener() {
 
   # Get connection info
   local info="${WS_CONNECTIONS[$conn_id]}"
-  local log_dir=$(echo "$info" | cut -d'|' -f2)
+  local log_dir
+  log_dir=$(echo "$info" | cut -d'|' -f2)
   local response_file="$log_dir/response.json"
   local listener_pid_file="$log_dir/listener.pid"
 
   # Start background process
   (
     # Start position in the response file
-    local start_pos=$(wc -c <"$response_file")
+    local start_pos
+    start_pos=$(wc -c <"$response_file")
     local count=0
 
     while true; do
       # Check for new data in the response file
       if [[ -s $response_file && $(wc -c <"$response_file") -gt $start_pos ]]; then
         # Extract new responses
-        local new_data=$(tail -c +$((start_pos + 1)) "$response_file")
+        local new_data
+        new_data=$(tail -c +$((start_pos + 1)) "$response_file")
 
         # Process each line
         echo "$new_data" | while IFS= read -r message; do
@@ -375,11 +388,13 @@ ws_stop_listener() {
     return 0
   fi
 
-  local log_dir=$(echo "$info" | cut -d'|' -f2)
+  local log_dir
+  log_dir=$(echo "$info" | cut -d'|' -f2)
   local listener_pid_file="$log_dir/listener.pid"
 
   if [[ -f $listener_pid_file ]]; then
-    local pid=$(cat "$listener_pid_file")
+    local pid
+    pid=$(cat "$listener_pid_file")
     kill "$pid" 2>/dev/null || kill -9 "$pid" 2>/dev/null
     rm -f "$listener_pid_file"
   fi

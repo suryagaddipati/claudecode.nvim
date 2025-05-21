@@ -4,7 +4,9 @@
 
 # Source the libraries
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=./lib_claude.sh
 source "$SCRIPT_DIR/lib_claude.sh"
+# shellcheck source=./lib_ws_persistent.sh
 source "$SCRIPT_DIR/lib_ws_persistent.sh"
 
 # Configuration
@@ -132,7 +134,7 @@ handle_open_file() {
   # Convert to absolute path if relative
   if [[ $file_path != /* ]]; then
     file_path="$(realpath "$file_path" 2>/dev/null)"
-    if [ $? -ne 0 ]; then
+    if ! realpath "$file_path" &>/dev/null; then
       echo -e "${RED}Invalid file path: $file_path${NC}"
       return
     fi

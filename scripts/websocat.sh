@@ -2,6 +2,7 @@
 
 CLAUDE_LIB_DIR="$(dirname "$(realpath "$0")")"
 
+# shellcheck source=./lib_claude.sh
 source "$CLAUDE_LIB_DIR/lib_claude.sh"
 
 websocat "$(get_claude_ws_url)"

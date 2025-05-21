@@ -19,6 +19,7 @@ else
 fi
 
 # Source the main library
+# shellcheck source=./lib_claude.sh
 source "$CLAUDE_LIB_DIR/lib_claude.sh"
 
 # Set default log directory relative to home
@@ -86,7 +87,7 @@ claude_open_file() {
   # Convert to absolute path if relative
   if [[ $file_path != /* ]]; then
     file_path="$(realpath "$file_path" 2>/dev/null)"
-    if [ $? -ne 0 ]; then
+    if ! realpath "$file_path" &>/dev/null; then
       echo "Error: Invalid file path" >&2
       return 1
     fi

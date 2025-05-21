@@ -37,7 +37,7 @@ function M.create(port)
   local lock_content = {
     pid = vim.fn.getpid(),
     workspaceFolders = workspace_folders,
-    ideName = "Claude Code Neovim MCP",
+    ideName = "Neovim",
     transport = "ws",
   }
 

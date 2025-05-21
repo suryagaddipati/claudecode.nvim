@@ -77,14 +77,32 @@ The plugin monitors text selections in Neovim:
 - Formats selection data according to MCP protocol
 - Sends updates to Claude via WebSocket
 
-### 5. Environment Integration
+### 5. Terminal Integration
+
+The plugin provides a dedicated terminal interface for Claude Code CLI:
+
+- Uses [folke/snacks.nvim](https://github.com/folke/snacks.nvim) for terminal management
+- Creates a vertical split terminal with customizable size and position
+- Supports focus, toggle, and close operations
+- Maintains terminal state across operations
+- Automatically cleans up on window close
+
+```
+┌─────────────┐    ┌─────────────────┐    ┌─────────────┐
+│             │    │                 │    │             │
+│  Neovim     │◄───┤ Claude Terminal │◄───┤  Claude CLI │
+│  Buffers    │    │ (Snacks.nvim)   │    │             │
+└─────────────┘    └─────────────────┘    └─────────────┘
+```
+
+### 6. Environment Integration
 
 The plugin manages the environment for Claude CLI:
 
 - Sets required environment variables:
   - `CLAUDE_CODE_SSE_PORT`: The WebSocket server port
   - `ENABLE_IDE_INTEGRATION`: Enabled flag
-- Provides terminal integration for launching Claude
+- Provides configuration for the terminal command
 
 ## Message Flow
 
@@ -141,6 +159,7 @@ lua/claudecode/
 │   ├── editor.lua        # Editor information tools
 │   └── selection.lua     # Selection management tools
 ├── selection.lua         # Selection tracking
+├── terminal.lua          # Terminal management (uses Snacks.nvim)
 ├── environment.lua       # Environment variable management
 └── util.lua              # Utility functions
 ```
@@ -170,6 +189,7 @@ tests/
 ├── unit/
 │   ├── config_spec.lua
 │   ├── server_spec.lua
+│   ├── terminal_spec.lua
 │   └── tools_spec.lua
 ├── component/
 │   ├── server_spec.lua

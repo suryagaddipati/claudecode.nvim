@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   unit-tests:
     runs-on: ubuntu-latest
@@ -14,21 +17,23 @@ jobs:
         neovim-version: ["stable", "nightly"]
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4
+        with:
+          persist-credentials: false
 
       - name: Setup Neovim
-        uses: rhysd/action-setup-vim@v1
+        uses: rhysd/action-setup-vim@8e931b9954b19d4203d5caa5ff5521f3bc21dcc7 # v1.4.2
         with:
           neovim: true
           version: ${{ matrix.neovim-version }}
 
       - name: Setup Lua
-        uses: leafo/gh-actions-lua@v10
+        uses: leafo/gh-actions-lua@8aace3457a2fcf3f3c4e9007ecc6b869ff6d74d6 # v11
         with:
           luaVersion: "5.1"
 
       - name: Setup Luarocks
-        uses: leafo/gh-actions-luarocks@v4
+        uses: leafo/gh-actions-luarocks@4c082a5fad45388feaeb0798dbd82dbd7dc65bca # v5
 
       - name: Install dependencies
         run: |
@@ -52,7 +57,7 @@ jobs:
           luacov-console -r lcov > lcov.info
 
       - name: Upload coverage report
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@c16abc29c95fcf9174b58eb7e1abf4c866893bc8 # v4
         with:
           files: ./tests/lcov.info
           fail_ci_if_error: false
@@ -65,10 +70,12 @@ jobs:
         neovim-version: ["stable"]
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4
+        with:
+          persist-credentials: false
 
       - name: Setup Neovim
-        uses: rhysd/action-setup-vim@v1
+        uses: rhysd/action-setup-vim@8e931b9954b19d4203d5caa5ff5521f3bc21dcc7 # v1.4.2
         with:
           neovim: true
           version: ${{ matrix.neovim-version }}
@@ -76,7 +83,7 @@ jobs:
       - name: Install test dependencies
         run: |
           git clone --depth 1 https://github.com/nvim-lua/plenary.nvim ~/.local/share/nvim/site/pack/vendor/start/plenary.nvim
-          ln -s $(pwd) ~/.local/share/nvim/site/pack/vendor/start/claudecode.nvim
+          ln -s "$(pwd)" ~/.local/share/nvim/site/pack/vendor/start/claudecode.nvim
 
       - name: Run integration tests
         run: |
