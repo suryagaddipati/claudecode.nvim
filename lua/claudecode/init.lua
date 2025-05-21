@@ -60,13 +60,17 @@ M.state = {
   initialized = false,
 }
 
+---@alias ClaudeCode.TerminalOpts { \
+---  split_side?: "left"|"right", \
+---  split_width_percentage?: number, \
+---  provider?: "snacks"|"native", \
+---  show_native_term_exit_tip?: boolean }
+---
+---@alias ClaudeCode.SetupOpts { \
+---  terminal?: ClaudeCode.TerminalOpts }
+---
 --- Set up the plugin with user configuration
----@param opts table|nil Optional configuration table to override defaults.
----@field opts.terminal table|nil Configuration for the terminal module.
----@field opts.terminal.split_side string|nil 'left' or 'right'.
----@field opts.terminal.split_width_percentage number|nil Percentage of screen width (0.0 to 1.0).
----@field opts.terminal.provider string|nil 'snacks' or 'native'.
----@field opts.terminal.show_native_term_exit_tip boolean|nil Show tip for exiting native terminal (default: true).
+---@param opts ClaudeCode.SetupOpts|nil Optional configuration table to override defaults.
 ---@return table The plugin module
 function M.setup(opts)
   opts = opts or {}
@@ -134,7 +138,7 @@ function M.start(show_startup_notification)
   end
 
   M.state.server = server
-  M.state.port = result
+  M.state.port = tonumber(result)
 
   local lockfile = require("claudecode.lockfile")
   local lock_success, lock_result = lockfile.create(M.state.port)

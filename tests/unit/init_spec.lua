@@ -2,6 +2,15 @@ require("tests.busted_setup")
 require("tests.mocks.vim") -- Add mock vim for testing
 
 describe("claudecode.init", function()
+  ---@class AutocmdOptions
+  ---@field group string|number|nil
+  ---@field pattern string|string[]|nil
+  ---@field buffer number|nil
+  ---@field desc string|nil
+  ---@field callback function|nil
+  ---@field once boolean|nil
+  ---@field nested boolean|nil
+
   -- Save original functions
   local saved_vim_api = vim.api
   local saved_vim_deepcopy = vim.deepcopy
@@ -12,7 +21,9 @@ describe("claudecode.init", function()
   local saved_require = _G.require
 
   local mock_api = {
+    ---@type SpyableFunction
     nvim_create_autocmd = function() end,
+    ---@type SpyableFunction
     nvim_create_augroup = function()
       return 1
     end,
@@ -23,6 +34,7 @@ describe("claudecode.init", function()
     start = function()
       return true, 12345
     end,
+    ---@type SpyableFunction
     stop = function()
       return true
     end,
@@ -32,6 +44,7 @@ describe("claudecode.init", function()
     create = function()
       return true, "/mock/path"
     end,
+    ---@type SpyableFunction
     remove = function()
       return true
     end,
@@ -69,9 +82,12 @@ describe("claudecode.init", function()
     }
     vim.log = {
       levels = {
+        NONE = 0, -- Added
         INFO = 2,
         WARN = 3,
         ERROR = 4,
+        DEBUG = 5, -- Added
+        TRACE = 6, -- Added
       },
     }
 
@@ -111,9 +127,13 @@ describe("claudecode.init", function()
       local claudecode = require("claudecode")
       claudecode.setup()
 
-      assert.spy(mock_api.nvim_create_augroup).was_called(1)
-      assert.spy(mock_api.nvim_create_autocmd).was_called(1)
-      assert.spy(mock_api.nvim_create_autocmd).was_called_with("VimLeavePre", match.is_table())
+      ---@type SpyAsserts
+      local spy_augroup_asserts = mock_api.nvim_create_augroup:spy()
+      spy_augroup_asserts.was_called(1)
+      ---@type SpyAsserts
+      local spy_autocmd_asserts = mock_api.nvim_create_autocmd:spy()
+      spy_autocmd_asserts.was_called(1)
+      spy_autocmd_asserts.was_called_with("VimLeavePre", match.is_table())
     end)
   end)
 
@@ -124,29 +144,43 @@ describe("claudecode.init", function()
       claudecode.start()
 
       -- Get the callback function from the autocmd call
-      local callback_fn = mock_api.nvim_create_autocmd.calls[1].vals[2].callback
+      local opts = mock_api.nvim_create_autocmd.calls[1].vals[2] ---@type AutocmdOptions
+      local callback_fn = opts.callback
 
       -- Call the callback function to simulate VimLeavePre event
-      callback_fn()
+      if callback_fn then
+        callback_fn()
+      end
 
       -- Verify that stop was called
-      assert.spy(mock_server.stop).was_called(1)
-      assert.spy(mock_lockfile.remove).was_called(1)
+      ---@type SpyAsserts
+      local spy_server_stop_asserts = mock_server.stop:spy()
+      spy_server_stop_asserts.was_called(1)
+      ---@type SpyAsserts
+      local spy_lockfile_remove_asserts = mock_lockfile.remove:spy()
+      spy_lockfile_remove_asserts.was_called(1)
     end)
 
     it("should do nothing if the server is not running", function()
       local claudecode = require("claudecode")
-      claudecode.setup()
+      claudecode.setup({ auto_start = false })
 
       -- Get the callback function from the autocmd call
-      local callback_fn = mock_api.nvim_create_autocmd.calls[1].vals[2].callback
+      local opts = mock_api.nvim_create_autocmd.calls[1].vals[2] ---@type AutocmdOptions
+      local callback_fn = opts.callback
 
       -- Call the callback function to simulate VimLeavePre event
-      callback_fn()
+      if callback_fn then
+        callback_fn()
+      end
 
       -- Verify that stop was not called
-      assert.spy(mock_server.stop).was_not_called()
-      assert.spy(mock_lockfile.remove).was_not_called()
+      ---@type SpyAsserts
+      local spy_server_stop_not_asserts = mock_server.stop:spy()
+      spy_server_stop_not_asserts.was_not_called()
+      ---@type SpyAsserts
+      local spy_lockfile_remove_not_asserts = mock_lockfile.remove:spy()
+      spy_lockfile_remove_not_asserts.was_not_called()
     end)
   end)
 end)

@@ -285,17 +285,17 @@ describe("claudecode.terminal (wrapper for Snacks.nvim)", function()
         return _copy_local(tbl)
       end
     end)
-    vim.api.nvim_buf_get_option = spy.new(function(bufnr, opt_name)
+    vim.api.nvim_buf_get_option = spy.new(function(_bufnr, opt_name)
       if opt_name == "buftype" then
         return "terminal"
       end
       return nil
     end)
-    vim.api.nvim_win_call = spy.new(function(winid, func)
+    vim.api.nvim_win_call = spy.new(function(_winid, func)
       func()
     end)
-    vim.cmd = spy.new(function(cmd_str) end)
-    vim.notify = spy.new(function(msg, level) end)
+    vim.cmd = spy.new(function(_cmd_str) end)
+    vim.notify = spy.new(function(_msg, _level) end)
 
     terminal_wrapper = require("claudecode.terminal")
     terminal_wrapper.setup({})

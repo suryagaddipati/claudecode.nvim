@@ -4,7 +4,7 @@
 local real_vim = _G.vim
 if not _G.vim then
   -- Create a basic vim mock
-  _G.vim = {
+  _G.vim = { -- Removed ---@type vim_global_api annotation
     fn = {
       expand = function(path)
         return path:gsub("~", "/home/user")
@@ -21,6 +21,17 @@ if not _G.vim then
       filereadable = function()
         return 1
       end,
+    },
+    notify = function(msg, level, opts) end,
+    log = {
+      levels = {
+        NONE = 0,
+        ERROR = 1,
+        WARN = 2,
+        INFO = 3,
+        DEBUG = 4,
+        TRACE = 5,
+      },
     },
     json = {
       encode = function(_obj) -- Prefix unused param with underscore
@@ -107,7 +118,7 @@ describe("Lockfile Module", function()
 
     it("should include the current working directory", function()
       local folders = lockfile.get_workspace_folders()
-      assert.equals("/mock/cwd", folders[1])
+      assert("/mock/cwd" == folders[1])
     end)
 
     it("should work with current Neovim API (get_clients)", function()
@@ -118,9 +129,9 @@ describe("Lockfile Module", function()
       local folders = lockfile.get_workspace_folders()
 
       -- Verify results
-      assert.equals(3, #folders) -- cwd + 2 workspace folders
-      assert.equals("/mock/folder1", folders[2])
-      assert.equals("/mock/folder2", folders[3])
+      assert(3 == #folders) -- cwd + 2 workspace folders
+      assert("/mock/folder1" == folders[2])
+      assert("/mock/folder2" == folders[3])
     end)
 
     it("should work with legacy Neovim API (get_active_clients)", function()
@@ -131,9 +142,9 @@ describe("Lockfile Module", function()
       local folders = lockfile.get_workspace_folders()
 
       -- Verify results
-      assert.equals(3, #folders) -- cwd + 2 workspace folders
-      assert.equals("/mock/folder1", folders[2])
-      assert.equals("/mock/folder2", folders[3])
+      assert(3 == #folders) -- cwd + 2 workspace folders
+      assert("/mock/folder1" == folders[2])
+      assert("/mock/folder2" == folders[3])
     end)
 
     it("should handle duplicate folder paths", function()
@@ -158,7 +169,7 @@ describe("Lockfile Module", function()
       local folders = lockfile.get_workspace_folders()
 
       -- Verify results
-      assert.equals(2, #folders) -- cwd + 1 unique workspace folder
+      assert(2 == #folders) -- cwd + 1 unique workspace folder
     end)
   end)
 end)

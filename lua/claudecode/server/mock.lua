@@ -18,7 +18,7 @@ M.state = {
 
 --- Find an available port in the given range
 ---@param min number The minimum port number
----@param max number The maximum port number
+---@param _max number The maximum port number
 ---@return number port The selected port
 function M.find_available_port(min, _max)
   -- For mock implementation, just return the minimum port

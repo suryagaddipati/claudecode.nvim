@@ -1,8 +1,9 @@
 -- Simple config module tests that don't rely on the vim API
 
 -- Create minimal vim mock
-_G.vim = {
+_G.vim = { ---@type vim_global_api
   deepcopy = function(t)
+    -- Basic deepcopy for testing
     local copy = {}
     for k, v in pairs(t) do
       if type(v) == "table" then
@@ -13,6 +14,17 @@ _G.vim = {
     end
     return copy
   end,
+  notify = function(msg, level, opts) end,
+  log = {
+    levels = {
+      NONE = 0,
+      ERROR = 1,
+      WARN = 2,
+      INFO = 3,
+      DEBUG = 4,
+      TRACE = 5,
+    },
+  },
 
   tbl_deep_extend = function(behavior, ...)
     local result = {}
@@ -45,13 +57,13 @@ describe("Config module", function()
   end)
 
   it("should have default values", function()
-    assert.is_table(config.defaults)
-    assert.is_table(config.defaults.port_range)
-    assert.is_number(config.defaults.port_range.min)
-    assert.is_number(config.defaults.port_range.max)
-    assert.is_boolean(config.defaults.auto_start)
-    assert.is_string(config.defaults.log_level)
-    assert.is_boolean(config.defaults.track_selection)
+    assert(type(config.defaults) == "table")
+    assert(type(config.defaults.port_range) == "table")
+    assert(type(config.defaults.port_range.min) == "number")
+    assert(type(config.defaults.port_range.max) == "number")
+    assert(type(config.defaults.auto_start) == "boolean")
+    assert(type(config.defaults.log_level) == "string")
+    assert(type(config.defaults.track_selection) == "boolean")
   end)
 
   it("should validate valid configuration", function()
@@ -67,7 +79,7 @@ describe("Config module", function()
       return config.validate(valid_config)
     end)
 
-    assert.is_true(success)
+    assert(success == true)
   end)
 
   it("should merge user config with defaults", function()
@@ -78,9 +90,9 @@ describe("Config module", function()
 
     local merged_config = config.apply(user_config)
 
-    assert.is_true(merged_config.auto_start)
-    assert.equals("debug", merged_config.log_level)
-    assert.equals(config.defaults.port_range.min, merged_config.port_range.min)
-    assert.equals(config.defaults.track_selection, merged_config.track_selection)
+    assert(merged_config.auto_start == true)
+    assert("debug" == merged_config.log_level)
+    assert(config.defaults.port_range.min == merged_config.port_range.min)
+    assert(config.defaults.track_selection == merged_config.track_selection)
   end)
 end)

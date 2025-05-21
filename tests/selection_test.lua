@@ -185,6 +185,19 @@ if not _G.vim then
         }
       end,
     },
+
+    -- Added notify and log mocks
+    notify = function(msg, level, opts) end,
+    log = {
+      levels = {
+        NONE = 0,
+        ERROR = 1,
+        WARN = 2,
+        INFO = 3,
+        DEBUG = 4,
+        TRACE = 5,
+      },
+    },
   }
 
   -- Initialize with a test buffer
@@ -224,26 +237,26 @@ describe("Selection module", function()
   end)
 
   it("should have the correct initial state", function()
-    assert.is_table(selection.state)
-    assert.is_nil(selection.state.latest_selection)
-    assert.is_false(selection.state.tracking_enabled)
-    assert.is_nil(selection.state.debounce_timer)
-    assert.is_number(selection.state.debounce_ms)
+    assert(type(selection.state) == "table")
+    assert(selection.state.latest_selection == nil)
+    assert(selection.state.tracking_enabled == false)
+    assert(selection.state.debounce_timer == nil)
+    assert(type(selection.state.debounce_ms) == "number")
   end)
 
   it("should enable and disable tracking", function()
     -- Enable tracking
     selection.enable(mock_server)
 
-    assert.is_true(selection.state.tracking_enabled)
-    assert.equals(mock_server, selection.server)
+    assert(selection.state.tracking_enabled == true)
+    assert(mock_server == selection.server)
 
     -- Disable tracking
     selection.disable()
 
-    assert.is_false(selection.state.tracking_enabled)
-    assert.is_nil(selection.server)
-    assert.is_nil(selection.state.latest_selection)
+    assert(selection.state.tracking_enabled == false)
+    assert(selection.server == nil)
+    assert(selection.state.latest_selection == nil)
   end)
 
   it("should get cursor position in normal mode", function()
@@ -261,20 +274,20 @@ describe("Selection module", function()
     -- Restore original function
     _G.vim.api.nvim_win_get_cursor = old_win_get_cursor
 
-    assert.is_table(cursor_pos)
-    assert.equals("", cursor_pos.text)
-    assert.is_string(cursor_pos.filePath)
-    assert.is_string(cursor_pos.fileUrl)
-    assert.is_table(cursor_pos.selection)
-    assert.is_table(cursor_pos.selection.start)
-    assert.is_table(cursor_pos.selection["end"])
+    assert(type(cursor_pos) == "table")
+    assert("" == cursor_pos.text)
+    assert(type(cursor_pos.filePath) == "string")
+    assert(type(cursor_pos.fileUrl) == "string")
+    assert(type(cursor_pos.selection) == "table")
+    assert(type(cursor_pos.selection.start) == "table")
+    assert(type(cursor_pos.selection["end"]) == "table")
 
     -- Check positions - 0-based in selection, source is 1-based from nvim_win_get_cursor
-    assert.equals(1, cursor_pos.selection.start.line) -- Should be 2-1=1
-    assert.equals(3, cursor_pos.selection.start.character)
-    assert.equals(1, cursor_pos.selection["end"].line)
-    assert.equals(3, cursor_pos.selection["end"].character)
-    assert.is_true(cursor_pos.selection.isEmpty)
+    assert(1 == cursor_pos.selection.start.line) -- Should be 2-1=1
+    assert(3 == cursor_pos.selection.start.character)
+    assert(1 == cursor_pos.selection["end"].line)
+    assert(3 == cursor_pos.selection["end"].character)
+    assert(cursor_pos.selection.isEmpty == true)
   end)
 
   it("should detect selection changes", function()
@@ -337,15 +350,15 @@ describe("Selection module", function()
     selection.state.latest_selection = old_selection
 
     -- Test same selection
-    assert.is_false(selection.has_selection_changed(new_selection_same))
+    assert(selection.has_selection_changed(new_selection_same) == false)
 
     -- Test different file
-    assert.is_true(selection.has_selection_changed(new_selection_diff_file))
+    assert(selection.has_selection_changed(new_selection_diff_file) == true)
 
     -- Test different text
-    assert.is_true(selection.has_selection_changed(new_selection_diff_text))
+    assert(selection.has_selection_changed(new_selection_diff_text) == true)
 
     -- Test different position
-    assert.is_true(selection.has_selection_changed(new_selection_diff_pos))
+    assert(selection.has_selection_changed(new_selection_diff_pos) == true)
   end)
 end)

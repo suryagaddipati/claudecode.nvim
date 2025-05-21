@@ -31,6 +31,19 @@ if not _G.vim then
 
       return result
     end,
+
+    -- Added notify and log mocks
+    notify = function(msg, level, opts) end,
+    log = {
+      levels = {
+        NONE = 0,
+        ERROR = 1,
+        WARN = 2,
+        INFO = 3,
+        DEBUG = 4,
+        TRACE = 5,
+      },
+    },
   }
 end
 
@@ -54,19 +67,19 @@ describe("Server module", function()
   end)
 
   it("should have an empty initial state", function()
-    assert.is_table(server.state)
-    assert.is_nil(server.state.server)
-    assert.is_nil(server.state.port)
-    assert.is_table(server.state.clients)
-    assert.is_table(server.state.handlers)
+    assert(type(server.state) == "table")
+    assert(server.state.server == nil)
+    assert(server.state.port == nil)
+    assert(type(server.state.clients) == "table")
+    assert(type(server.state.handlers) == "table")
   end)
 
   it("should find an available port", function()
     local port = server.find_available_port(10000, 65535)
 
-    assert.is_number(port)
-    assert.is_true(port >= 10000)
-    assert.is_true(port <= 65535)
+    assert(type(port) == "number")
+    assert(port >= 10000 == true)
+    assert(port <= 65535 == true)
   end)
 
   it("should start and stop the server", function()
@@ -80,19 +93,19 @@ describe("Server module", function()
     -- Start the server
     local start_success, result = server.start(config)
 
-    assert.is_true(start_success)
-    assert.is_number(result)
-    assert.is_not_nil(server.state.server)
-    assert.is_not_nil(server.state.port)
+    assert(start_success == true)
+    assert(type(result) == "number")
+    assert(server.state.server ~= nil)
+    assert(server.state.port ~= nil)
 
     -- Stop the server
     local stop_success = server.stop()
 
-    assert.is_true(stop_success)
-    assert.is_nil(server.state.server)
-    assert.is_nil(server.state.port)
-    assert.is_table(server.state.clients)
-    assert.equals(0, #server.state.clients)
+    assert(stop_success == true)
+    assert(server.state.server == nil)
+    assert(server.state.port == nil)
+    assert(type(server.state.clients) == "table")
+    assert(0 == #server.state.clients)
   end)
 
   it("should not stop the server if not running", function()
@@ -103,7 +116,7 @@ describe("Server module", function()
 
     local success, error = server.stop()
 
-    assert.is_false(success)
-    assert.equals("Server not running", error)
+    assert(success == false)
+    assert("Server not running" == error)
   end)
 end)
