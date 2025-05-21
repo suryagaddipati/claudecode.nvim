@@ -12,8 +12,7 @@ TEST_FILES=$(find tests -type f -name "*_test.lua" | sort)
 echo "Found test files: $TEST_FILES"
 
 if [ -n "$TEST_FILES" ]; then
-  busted -v $TEST_FILES
+  busted -v "$TEST_FILES"
 else
   echo "No test files found"
 fi
-

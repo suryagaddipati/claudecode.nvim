@@ -20,6 +20,7 @@
             stylua.enable = true; # Lua formatter
             nixpkgs-fmt.enable = true; # Nix formatter
             prettier.enable = true; # Markdown/YAML/JSON formatter
+            shfmt.enable = true; # Shell formatter
           };
         };
       in
@@ -42,9 +43,12 @@
             luajitPackages.lua-cjson
 
             # Development utilities
+            ast-grep
             neovim # For testing the plugin
             luarocks # Lua package manager
             gnumake # For running the Makefile
+            websocat # WebSocket testing utility
+            jq # JSON processor for parsing responses
 
             # Formatting tools (via treefmt-nix)
             treefmt.config.build.wrapper

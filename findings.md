@@ -11,6 +11,8 @@ This document outlines the findings from analyzing the Claude Code VS Code exten
 - The extension starts an HTTP server that hosts a WebSocket server for the Claude CLI to connect to
 - JSON-RPC 2.0 style messaging is used for communication between the extension and CLI
 - The WebSocket server is created using the `ws` npm package
+- The protocol follows a specific lifecycle (initialization, operation, shutdown) as described in the MCP 2025-03-26 specification
+- Proper initialization is required before any tool operations can be performed
 
 ### Message Format
 
@@ -77,34 +79,101 @@ The lock file contains a JSON object with the following structure:
 
 1. **Tool Invocation Requests**:
 
+   Based on the MCP 2025-03-26 specification, the correct format should be:
+
    ```json
    {
      "jsonrpc": "2.0",
-     "method": "mcp.tool.invoke",
+     "id": "request-123",
+     "method": "tools/call",
      "params": {
        "name": "toolName",
-       "input": {
-         /* tool-specific parameters */
+       "arguments": {
+         /* tool-specific parameters matching the inputSchema */
        }
      }
    }
    ```
 
-2. **Connection Handshake Messages**:
+   Tool parameters are defined in the response to the `tools/list` method:
 
    ```json
    {
      "jsonrpc": "2.0",
-     "method": "mcp.connect",
-     "params": {
-       /* connection parameters */
+     "id": "tools-list-request",
+     "result": {
+       "tools": [
+         {
+           "name": "toolName",
+           "description": "Tool description",
+           "inputSchema": {
+             "type": "object",
+             "properties": {
+               "paramName": {
+                 "type": "string",
+                 "description": "Parameter description"
+               }
+             },
+             "required": ["paramName"],
+             "additionalProperties": false,
+             "$schema": "http://json-schema.org/draft-07/schema#"
+           }
+         }
+       ]
      }
    }
    ```
 
+   **Note**: Our testing shows that the current VSCode extension doesn't actually respond to these tool calls. The extension currently only sends notifications to Claude rather than receiving commands. However, the Neovim implementation should still support these methods for future compatibility.
+
+2. **Connection Initialization**:
+
+   The MCP lifecycle requires a proper initialization sequence:
+
+   ```json
+   {
+     "jsonrpc": "2.0",
+     "id": "init-1",
+     "method": "initialize",
+     "params": {
+       "protocolVersion": "2025-03-26",
+       "capabilities": {
+         "roots": { "listChanged": true },
+         "sampling": {}
+       },
+       "clientInfo": {
+         "name": "ClientName",
+         "version": "1.0.0"
+       }
+     }
+   }
+   ```
+
+   Followed by an initialized notification (two formats appear in the spec, both should be supported):
+
+   ```json
+   {
+     "jsonrpc": "2.0",
+     "method": "initialized"
+   }
+   ```
+
+   Or:
+
+   ```json
+   {
+     "jsonrpc": "2.0",
+     "method": "notifications/initialized"
+   }
+   ```
+
+   **Note**: Our testing shows the VSCode extension doesn't respond to initialization messages with the expected response. However, the Neovim implementation should still implement the full MCP lifecycle for future compatibility.
+
 ### Messages From VS Code Extension to Claude Code
 
 1. **Selection Updates**:
+
+   Testing confirms this is the primary message type actually sent by the extension.
 
    ```json
    {
@@ -122,6 +191,8 @@ The lock file contains a JSON object with the following structure:
      }
    }
    ```
+
+   Neovim must send these notifications when selection changes occur to keep Claude informed of the current context.
 
 2. **At-Mention Notifications**:
 
@@ -169,10 +240,10 @@ The extension registers various tools with the MCP server:
 1. **openDiff**: Open a diff view between two files
 
    - Parameters:
-     - `old_file_path`: Path to the original file
-     - `new_file_path`: Path to the new file
-     - `new_file_contents`: Contents of the new file
-     - `tab_name`: Name for the diff tab
+     - `old_file_path`: Path to the original file (REQUIRED)
+     - `new_file_path`: Path to the new file (REQUIRED)
+     - `new_file_contents`: Contents of the new file (REQUIRED)
+     - `tab_name`: Name for the diff tab (REQUIRED)
    - Returns: Information about diff acceptance or rejection
 
 2. **getDiagnostics**: Get language diagnostics from VS Code
@@ -183,16 +254,16 @@ The extension registers various tools with the MCP server:
 3. **close_tab**: Close a tab by name
 
    - Parameters:
-     - `tab_name`: Name of the tab to close
+     - `tab_name`: Name of the tab to close (REQUIRED)
    - Returns: Status message
 
 4. **openFile**: Open a file in the editor and optionally select text
 
    - Parameters:
-     - `filePath`: Path to the file to open
+     - `filePath`: Path to the file to open (REQUIRED)
      - `preview`: Whether to open in preview mode (default: false)
-     - `startText`: Text pattern to find for start of selection
-     - `endText`: Text pattern to find for end of selection
+     - `startText`: Text pattern to find for start of selection (REQUIRED)
+     - `endText`: Text pattern to find for end of selection (REQUIRED)
      - `selectToEndOfLine`: Whether to select to end of line containing match
    - Returns: Status message
 
@@ -214,13 +285,13 @@ The extension registers various tools with the MCP server:
 8. **checkDocumentDirty**: Check if a document has unsaved changes
 
    - Parameters:
-     - `filePath`: Path to the file to check
+     - `filePath`: Path to the file to check (REQUIRED)
    - Returns: Boolean indicating whether the document is dirty
 
 9. **saveDocument**: Save a document with unsaved changes
 
    - Parameters:
-     - `filePath`: Path to the file to save
+     - `filePath`: Path to the file to save (REQUIRED)
    - Returns: Status message
 
 10. **getLatestSelection**: Get the most recent text selection
@@ -230,7 +301,7 @@ The extension registers various tools with the MCP server:
 
 11. **executeCode**: Execute Python code in Jupyter kernel
     - Parameters:
-      - `code`: The code to execute
+      - `code`: The code to execute (REQUIRED)
     - Returns: Execution results and/or output
 
 ## Implementation Strategy for Neovim
@@ -239,9 +310,12 @@ To implement this functionality in Neovim:
 
 1. **WebSocket Server**:
 
-   - Create a WebSocket server implementing the MCP protocol
+   - Create a WebSocket server implementing the MCP protocol (2025-03-26 or compatible version)
    - Use a library like `lua-websockets` or integrate with a Node.js server
    - Implement JSON-RPC 2.0 message handling
+   - Follow the proper MCP lifecycle (initialize, initialized notification, then operations)
+   - Note that currently the VSCode extension appears primarily to send notifications to Claude rather than receive commands
+   - Implement the full MCP protocol for future compatibility even if current tools aren't invoked
 
 2. **Lock File Management**:
 
