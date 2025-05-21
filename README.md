@@ -12,7 +12,7 @@ A Neovim plugin that integrates with Claude Code CLI to provide a seamless AI co
 - 🔍 Selection tracking to provide context to Claude
 - 🛠️ Integration with Neovim's buffer and window management
 - 📝 Support for file operations and diagnostics
-- 🖥️ Interactive vertical split terminal for Claude sessions (via `folke/snacks.nvim`)
+- 🖥️ Interactive vertical split terminal for Claude sessions (supports `folke/snacks.nvim` or native Neovim terminal)
 - 🔒 Automatic cleanup on exit - server shutdown and lockfile removal
 
 ## Requirements
@@ -20,10 +20,10 @@ A Neovim plugin that integrates with Claude Code CLI to provide a seamless AI co
 - Neovim >= 0.8.0
 - Claude Code CLI installed and in your PATH
 - Lua >= 5.1
-- **Required for terminal integration:** [folke/snacks.nvim](https://github.com/folke/snacks.nvim) - Terminal management plugin
+- **Optional for terminal integration:** [folke/snacks.nvim](https://github.com/folke/snacks.nvim) - Terminal management plugin (can use native Neovim terminal as an alternative).
 - Optional: plenary.nvim for additional utilities
 
-Note: The terminal feature requires Snacks.nvim to be installed and available. If not available, the terminal commands will display an error message, but the core Claude Code integration will still function.
+Note: The terminal feature can use `Snacks.nvim` or the native Neovim terminal. If `Snacks.nvim` is configured as the provider but is not available, it will fall back to the native terminal.
 
 ## Installation
 
@@ -84,15 +84,16 @@ return {
       terminal = {
         split_side = "left",            -- "left" or "right"
         split_width_percentage = 0.4, -- 0.0 to 1.0
+        provider = "snacks",          -- "snacks" or "native" (defaults to "snacks")
+        show_native_term_exit_tip = true, -- Show tip for Ctrl-\\ Ctrl-N (defaults to true)
       },
     },
     -- The main require("claudecode").setup(opts) will handle passing
     -- opts.terminal to the terminal module's setup.
     config = true, -- or function(_, opts) require("claudecode").setup(opts) end
     keys = {
-      { "<leader>cc", "<cmd>ClaudeCodeStart<cr>", desc = "Start Claude Code" },
+      { "<leader>cc", "<cmd>ClaudeCode<cr>", desc = "Toggle Claude Terminal" },
       { "<leader>cs", "<cmd>ClaudeCodeSend<cr>", desc = "Send to Claude Code" },
-      { "<leader>ct", "<cmd>ClaudeCode<cr>", desc = "Toggle Claude Terminal" },
       { "<leader>co", "<cmd>ClaudeCodeOpen<cr>", desc = "Open Claude Terminal" },
       { "<leader>cx", "<cmd>ClaudeCodeClose<cr>", desc = "Close Claude Terminal" },
     },
@@ -117,19 +118,20 @@ return {
     opts = {
       -- Development configuration for claudecode main
       log_level = "debug",
-      auto_start = true,  -- Optional: auto-start the server
+      auto_start = true,
 
       -- Example terminal configuration for dev:
       terminal = {
         split_side = "right",
         split_width_percentage = 0.25,
+        provider = "native",
+        show_native_term_exit_tip = false,
       },
     },
     config = true,
     keys = {
-      { "<leader>cc", "<cmd>ClaudeCodeStart<cr>", desc = "Start Claude Code" },
+      { "<leader>cc", "<cmd>ClaudeCode<cr>", desc = "Toggle Claude Terminal" },
       { "<leader>cs", "<cmd>ClaudeCodeSend<cr>", desc = "Send to Claude Code" },
-      { "<leader>ct", "<cmd>ClaudeCode<cr>", desc = "Toggle Claude Terminal" },
       { "<leader>co", "<cmd>ClaudeCodeOpen<cr>", desc = "Open Claude Terminal" },
       { "<leader>cx", "<cmd>ClaudeCodeClose<cr>", desc = "Close Claude Terminal" },
     },
@@ -151,8 +153,9 @@ require("claudecode").setup({
   -- Port range for WebSocket server (default: 10000-65535)
   port_range = { min = 10000, max = 65535 },
 
-  -- Auto-start WebSocket server on Neovim startup
-  auto_start = false,
+  -- Auto-start WebSocket server when the plugin is loaded.
+  -- Note: With lazy-loading (e.g., LazyVim), this means the server starts when a plugin command is first used.
+  auto_start = true,
 
   -- Custom terminal command to use when launching Claude
   -- This command is used by the new interactive terminal feature.
@@ -172,6 +175,13 @@ require("claudecode").setup({
 
     -- Width of the terminal as a percentage of total editor width (0.0 to 1.0)
     split_width_percentage = 0.30, -- Default
+
+    -- Terminal provider ('snacks' or 'native')
+    -- If 'snacks' is chosen but not available, it will fall back to 'native'.
+    provider = "snacks", -- Default
+
+    -- Whether to show a one-time tip about exiting native terminal mode (Ctrl-\\ Ctrl-N)
+    show_native_term_exit_tip = true -- Default
   }
 })
 ```
@@ -209,12 +219,12 @@ require("claudecode").setup({
 No default keymaps are provided. Add your own in your configuration:
 
 ```lua
-vim.keymap.set("n", "<leader>cc", "<cmd>ClaudeCodeStart<cr>", { desc = "Start Claude Code" })
+vim.keymap.set("n", "<leader>cc", "<cmd>ClaudeCode<cr>", { desc = "Toggle Claude Terminal" })
 vim.keymap.set({"n", "v"}, "<leader>cs", "<cmd>ClaudeCodeSend<cr>", { desc = "Send to Claude Code" })
-+vim.keymap.set("n", "<leader>ct", "<cmd>ClaudeCode<cr>", { desc = "Toggle Claude Terminal" })
-+-- Or more specific maps:
-+-- vim.keymap.set("n", "<leader>co", "<cmd>ClaudeCodeOpen<cr>", { desc = "Open Claude Terminal" })
-+-- vim.keymap.set("n", "<leader>cx", "<cmd>ClaudeCodeClose<cr>", { desc = "Close Claude Terminal" })
+
+-- Or more specific maps:
+vim.keymap.set("n", "<leader>co", "<cmd>ClaudeCodeOpen<cr>", { desc = "Open Claude Terminal" })
+vim.keymap.set("n", "<leader>cx", "<cmd>ClaudeCodeClose<cr>", { desc = "Close Claude Terminal" })
 ```
 
 ## Architecture

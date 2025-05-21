@@ -37,11 +37,10 @@ M.version = {
 --- @field log_level "trace"|"debug"|"info"|"warn"|"error" Log level.
 --- @field track_selection boolean Enable sending selection updates to Claude.
 
--- Default configuration
 --- @type ClaudeCode.Config
 local default_config = {
   port_range = { min = 10000, max = 65535 },
-  auto_start = false,
+  auto_start = true,
   terminal_cmd = nil,
   log_level = "info",
   track_selection = true,
@@ -53,7 +52,6 @@ local default_config = {
 --- @field port number|nil The port the server is running on.
 --- @field initialized boolean Whether the plugin has been initialized.
 
--- Plugin state
 --- @type ClaudeCode.State
 M.state = {
   config = vim.deepcopy(default_config),
@@ -63,7 +61,12 @@ M.state = {
 }
 
 --- Set up the plugin with user configuration
----@param opts table|nil Optional configuration table to override defaults
+---@param opts table|nil Optional configuration table to override defaults.
+---@field opts.terminal table|nil Configuration for the terminal module.
+---@field opts.terminal.split_side string|nil 'left' or 'right'.
+---@field opts.terminal.split_width_percentage number|nil Percentage of screen width (0.0 to 1.0).
+---@field opts.terminal.provider string|nil 'snacks' or 'native'.
+---@field opts.terminal.show_native_term_exit_tip boolean|nil Show tip for exiting native terminal (default: true).
 ---@return table The plugin module
 function M.setup(opts)
   opts = opts or {}

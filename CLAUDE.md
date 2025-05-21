@@ -12,12 +12,8 @@ Claude Code Neovim Integration is a Neovim plugin that enables bidirectional com
 # Format code with StyLua
 make format
 
-# Check code for errors
 make check  # Runs luacheck
-
-# Run all tests
 make test   # Runs all tests with busted
-
 # Run specific test file
 nvim --headless -u tests/minimal_init.lua -c "lua require('tests.unit.config_spec')"
 ```
@@ -133,7 +129,7 @@ require("claudecode").setup({
   port_range = { min = 10000, max = 65535 },
 
   -- Auto-start WebSocket server on Neovim startup
-  auto_start = false,
+  auto_start = true,
 
   -- Custom terminal command to use when launching Claude
   terminal_cmd = nil, -- e.g., "toggleterm"

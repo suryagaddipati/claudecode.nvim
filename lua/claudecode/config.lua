@@ -1,27 +1,21 @@
--- Configuration management for Claude Code Neovim integration
+--- Manages configuration for the Claude Code Neovim integration.
+-- Provides default settings, validation, and application of user-defined configurations.
 local M = {}
 
--- Default configuration
 M.defaults = {
-  -- Port range for WebSocket server
   port_range = { min = 10000, max = 65535 },
-
-  -- Auto-start WebSocket server on Neovim startup
-  auto_start = false,
-
-  -- Custom terminal command to use when launching Claude
+  auto_start = true,
   terminal_cmd = nil,
-
-  -- Log level (trace, debug, info, warn, error)
   log_level = "info",
-
-  -- Enable sending selection updates to Claude
   track_selection = true,
 }
 
--- Validate configuration
+--- Validates the provided configuration table.
+-- Ensures that all configuration options are of the correct type and within valid ranges.
+-- @param config table The configuration table to validate.
+-- @return boolean true if the configuration is valid.
+-- @error string if any configuration option is invalid.
 function M.validate(config)
-  -- Validate port range
   assert(
     type(config.port_range) == "table"
       and type(config.port_range.min) == "number"
@@ -32,13 +26,10 @@ function M.validate(config)
     "Invalid port range"
   )
 
-  -- Validate auto_start
   assert(type(config.auto_start) == "boolean", "auto_start must be a boolean")
 
-  -- Validate terminal_cmd
   assert(config.terminal_cmd == nil or type(config.terminal_cmd) == "string", "terminal_cmd must be nil or a string")
 
-  -- Validate log_level
   local valid_log_levels = { "trace", "debug", "info", "warn", "error" }
   local is_valid_log_level = false
   for _, level in ipairs(valid_log_levels) do
@@ -49,13 +40,16 @@ function M.validate(config)
   end
   assert(is_valid_log_level, "log_level must be one of: " .. table.concat(valid_log_levels, ", "))
 
-  -- Validate track_selection
   assert(type(config.track_selection) == "boolean", "track_selection must be a boolean")
 
   return true
 end
 
--- Apply configuration with validation
+--- Applies user configuration on top of default settings and validates the result.
+-- Merges the user-provided configuration with the default configuration,
+-- then validates the merged configuration.
+-- @param user_config table|nil The user-provided configuration table.
+-- @return table The final, validated configuration table.
 function M.apply(user_config)
   local config = vim.deepcopy(M.defaults)
 
@@ -63,7 +57,6 @@ function M.apply(user_config)
     config = vim.tbl_deep_extend("force", config, user_config)
   end
 
-  -- Validate the merged configuration
   M.validate(config)
 
   return config
