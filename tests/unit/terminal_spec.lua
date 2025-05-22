@@ -237,12 +237,10 @@ describe("claudecode.terminal (wrapper for Snacks.nvim)", function()
     mock_snacks_terminal = {
       open = spy.new(create_mock_terminal_instance),
       toggle = spy.new(function(cmd, opts)
-        if
-          terminal_wrapper
+        local existing_term = terminal_wrapper
           and terminal_wrapper._get_managed_terminal_for_test
-          and terminal_wrapper._get_managed_terminal_for_test()._cmd_received == cmd
-        then
-          local existing_term = terminal_wrapper._get_managed_terminal_for_test()
+          and terminal_wrapper._get_managed_terminal_for_test()
+        if existing_term and existing_term._cmd_received == cmd then
           if existing_term._on_close_callback then
             existing_term._on_close_callback({ winid = existing_term.winid })
           end

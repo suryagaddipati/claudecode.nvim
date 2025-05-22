@@ -42,9 +42,6 @@
             luajitPackages.busted
             luajitPackages.luacov
 
-            luajitPackages.luasocket
-            luajitPackages.lua-cjson
-
             ast-grep
             neovim
             luarocks

@@ -336,10 +336,58 @@ local vim = {
 
   -- Loop module stub
   loop = {
+    new_tcp = function()
+      return {
+        bind = function(self, host, port)
+          return true
+        end,
+        listen = function(self, backlog, callback)
+          return true
+        end,
+        accept = function(self, client)
+          return true
+        end,
+        read_start = function(self, callback)
+          return true
+        end,
+        write = function(self, data, callback)
+          if callback then
+            callback()
+          end
+          return true
+        end,
+        close = function(self)
+          return true
+        end,
+        is_closing = function(self)
+          return false
+        end,
+      }
+    end,
+    new_timer = function()
+      return {
+        start = function(self, timeout, repeat_interval, callback)
+          return true
+        end,
+        stop = function(self)
+          return true
+        end,
+        close = function(self)
+          return true
+        end,
+      }
+    end,
+    now = function()
+      return os.time() * 1000
+    end,
     timer_stop = function(timer)
       return true
     end,
   },
+
+  schedule = function(callback)
+    callback()
+  end,
 
   defer_fn = function(fn, timeout)
     -- For testing, we'll execute immediately

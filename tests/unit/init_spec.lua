@@ -182,6 +182,21 @@ describe("claudecode.init", function()
       -- Check if the first argument to nvim_create_autocmd was "VimLeavePre"
       assert(vim.api.nvim_create_autocmd.calls[1].vals[1] == "VimLeavePre", "Expected VimLeavePre event")
     end)
+
+    it("should correctly set vim.g.claudecode_user_config with terminal_cmd from opts", function()
+      local claudecode = require("claudecode")
+      local test_cmd = "my-custom-command --flag"
+      claudecode.setup({ terminal_cmd = test_cmd })
+
+      assert(vim.g.claudecode_user_config ~= nil, "vim.g.claudecode_user_config was not set")
+      assert(
+        vim.g.claudecode_user_config.terminal_cmd == test_cmd,
+        "vim.g.claudecode_user_config.terminal_cmd was not set correctly. Expected: "
+          .. test_cmd
+          .. ", Got: "
+          .. tostring(vim.g.claudecode_user_config.terminal_cmd)
+      )
+    end)
   end)
 
   describe("auto-shutdown", function()

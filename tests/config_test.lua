@@ -25,6 +25,44 @@ _G.vim = { ---@type vim_global_api
       TRACE = 5,
     },
   },
+  o = {}, ---@type vim_options_table
+  bo = setmetatable({}, { -- Mock for vim.bo and vim.bo[bufnr]
+    __index = function(t, k)
+      if type(k) == "number" then
+        -- vim.bo[bufnr] accessed, return a new proxy table for this buffer
+        if not t[k] then
+          t[k] = {} ---@type vim_buffer_options_table
+        end
+        return t[k]
+      end
+      -- vim.bo.option_name (global buffer option)
+      -- Return nil or a default mock value if needed
+      return nil
+    end,
+    __newindex = function(t, k, v)
+      if type(k) == "number" then
+        -- vim.bo[bufnr] = val (should not happen for options table itself)
+        -- or vim.bo[bufnr].opt = val
+        -- For simplicity, allow setting on the dynamic buffer table
+        if not t[k] then
+          t[k] = {}
+        end
+        rawset(t[k], v) -- Assuming v is the option name if k is bufnr, this is simplified
+      else
+        -- vim.bo.option_name = val
+        rawset(t, k, v)
+      end
+    end,
+  }), ---@type vim_bo_proxy
+  diagnostic = { ---@type vim_diagnostic_module
+    get = function()
+      return {}
+    end,
+    -- Add other vim.diagnostic functions as needed for tests
+  },
+  empty_dict = function()
+    return {}
+  end,
 
   tbl_deep_extend = function(behavior, ...)
     local result = {}

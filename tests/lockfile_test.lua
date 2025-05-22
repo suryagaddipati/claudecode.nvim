@@ -4,7 +4,7 @@
 local real_vim = _G.vim
 if not _G.vim then
   -- Create a basic vim mock
-  _G.vim = { -- Removed ---@type vim_global_api annotation
+  _G.vim = { ---@type vim_global_api
     fn = {
       expand = function(path)
         return path:gsub("~", "/home/user")
@@ -38,8 +38,33 @@ if not _G.vim then
         return '{"mocked":"json"}'
       end,
     },
-    lsp = {},
-  }
+    lsp = {}, -- Existing lsp mock part
+    o = {}, ---@type vim_options_table
+    bo = setmetatable({}, { -- Mock for vim.bo and vim.bo[bufnr]
+      __index = function(t, k)
+        if type(k) == "number" then
+          -- vim.bo[bufnr] accessed, return a new proxy table for this buffer
+          if not t[k] then
+            t[k] = {} ---@type vim_buffer_options_table
+          end
+          return t[k]
+        end
+        -- vim.bo.option_name (global buffer option)
+        return nil -- Return nil or a default mock value if needed
+      end, -- REMOVED COMMA from here (was after 'end')
+      -- __newindex can be added here if setting options is needed for tests
+      -- e.g., __newindex = function(t, k, v) rawset(t, k, v) end,
+    }), ---@type vim_bo_proxy
+    diagnostic = { ---@type vim_diagnostic_module
+      get = function()
+        return {}
+      end,
+      -- Add other vim.diagnostic functions as needed for tests
+    },
+    empty_dict = function()
+      return {}
+    end,
+  } -- This is the closing brace for _G.vim table
 end
 
 describe("Lockfile Module", function()

@@ -10,12 +10,15 @@ The plugin establishes a bidirectional communication channel between Neovim and 
 
 ### 1. WebSocket Server
 
-The WebSocket server is the communication backbone of the plugin:
+The WebSocket server is the communication backbone of the plugin, implemented using pure Neovim built-ins:
 
-- Implements JSON-RPC 2.0 message format
-- Listens on a dynamically selected port (10000-65535)
-- Handles client connections from Claude Code CLI
-- Dispatches incoming requests to appropriate handlers
+- **Pure Neovim Implementation**: Uses `vim.loop` (libuv) for TCP server operations
+- **RFC 6455 Compliant**: Full WebSocket protocol implementation
+- **JSON-RPC 2.0**: Standard message format for MCP communication
+- **Zero Dependencies**: No external libraries required
+- **Async Processing**: Non-blocking operations integrated with Neovim's event loop
+- **Multiple Clients**: Supports concurrent WebSocket connections
+- **Connection Management**: Ping/pong keepalive and graceful disconnection
 
 ```
 ┌─────────────┐                  ┌─────────────┐
@@ -23,6 +26,30 @@ The WebSocket server is the communication backbone of the plugin:
 │  Neovim     │◄──► JSON-RPC 2.0 │  Claude CLI │
 │  Plugin     │                  │             │
 └─────────────┘                  └─────────────┘
+```
+
+**WebSocket Server Architecture:**
+
+```
+┌─────────────────┐
+│   TCP Server    │ ◄─── vim.loop.new_tcp()
+│  (vim.loop)     │
+└─────────┬───────┘
+          │
+┌─────────▼───────┐
+│ HTTP Upgrade    │ ◄─── WebSocket handshake
+│   Handler       │
+└─────────┬───────┘
+          │
+┌─────────▼───────┐
+│ WebSocket Frame │ ◄─── RFC 6455 frame processing
+│   Parser        │
+└─────────┬───────┘
+          │
+┌─────────▼───────┐
+│   JSON-RPC      │ ◄─── MCP message routing
+│  Message Router │
+└─────────────────┘
 ```
 
 ### 2. Lock File System
@@ -149,20 +176,30 @@ lua/claudecode/
 ├── init.lua              # Main entry point and setup
 ├── config.lua            # Configuration management
 ├── server/
-│   ├── init.lua          # WebSocket server initialization
-│   ├── message.lua       # Message formatting and parsing
-│   └── handler.lua       # Request handlers
+│   ├── init.lua          # WebSocket server main interface with JSON-RPC 2.0
+│   ├── tcp.lua           # TCP server using vim.loop
+│   ├── utils.lua         # Utility functions (base64, SHA-1, HTTP parsing)
+│   ├── frame.lua         # WebSocket frame encoding/decoding (RFC 6455)
+│   ├── handshake.lua     # HTTP upgrade and WebSocket handshake
+│   ├── client.lua        # WebSocket client connection management
+│   └── mock.lua          # Mock server for testing
 ├── lockfile.lua          # Lock file management
 ├── tools/
-│   ├── init.lua          # Tool registration
-│   ├── file.lua          # File operation tools
-│   ├── editor.lua        # Editor information tools
-│   └── selection.lua     # Selection management tools
-├── selection.lua         # Selection tracking
-├── terminal.lua          # Terminal management (uses Snacks.nvim)
-├── environment.lua       # Environment variable management
-└── util.lua              # Utility functions
+│   └── init.lua          # Tool registration and dispatch
+├── selection.lua         # Selection tracking and notifications
+├── terminal.lua          # Terminal management (Snacks.nvim or native)
+└── meta/
+    └── vim.lua           # Vim API type definitions
 ```
+
+**WebSocket Server Implementation Details:**
+
+- **`server/tcp.lua`**: Creates TCP server using `vim.loop.new_tcp()`, handles port binding and client connections
+- **`server/handshake.lua`**: Processes HTTP upgrade requests, validates WebSocket headers, generates accept keys
+- **`server/frame.lua`**: Implements WebSocket frame parsing/encoding per RFC 6455 specification
+- **`server/client.lua`**: Manages individual WebSocket client connections and state
+- **`server/utils.lua`**: Provides base64 encoding, SHA-1 hashing, and XOR operations in pure Lua
+- **`server/init.lua`**: Main server interface that orchestrates all components and handles JSON-RPC messages
 
 ## Testing Architecture
 

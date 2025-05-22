@@ -27,43 +27,42 @@ claudecode.nvim/
 
 ## Core Components Implementation Status
 
-| Component              | Status         | Priority | Notes                              |
-| ---------------------- | -------------- | -------- | ---------------------------------- |
-| Basic plugin structure | ✅ Done        | -        | Initial setup complete             |
-| Configuration system   | ✅ Done        | -        | Support for user configuration     |
-| WebSocket server       | 🚧 Placeholder | High     | Need real implementation           |
-| Lock file management   | ✅ Done        | -        | Basic implementation complete      |
-| Selection tracking     | ✅ Done        | -        | Basic implementation complete      |
-| MCP tools              | 🚧 Placeholder | High     | Need real implementation           |
-| Tests                  | 🚧 Started     | High     | Framework set up, examples created |
-| CI pipeline            | ✅ Done        | -        | GitHub Actions configured          |
-| Documentation          | ✅ Done        | -        | Initial documentation complete     |
+| Component              | Status     | Priority | Notes                                    |
+| ---------------------- | ---------- | -------- | ---------------------------------------- |
+| Basic plugin structure | ✅ Done    | -        | Initial setup complete                   |
+| Configuration system   | ✅ Done    | -        | Support for user configuration           |
+| WebSocket server       | ✅ Done    | -        | Pure Lua RFC 6455 compliant              |
+| Lock file management   | ✅ Done    | -        | Basic implementation complete            |
+| Selection tracking     | ✅ Done    | -        | Enhanced with multi-mode support         |
+| MCP tools              | 🚧 Started | Medium   | Basic framework, need more tools         |
+| Tests                  | ✅ Done    | -        | 55 tests passing, comprehensive coverage |
+| CI pipeline            | ✅ Done    | -        | GitHub Actions configured                |
+| Documentation          | ✅ Done    | -        | Complete documentation                   |
 
 ## Development Priorities
 
-1. **WebSocket Server Implementation**
+1. **MCP Tool Enhancement**
 
-   - Implement real WebSocket server using lua-websockets
-   - Add JSON-RPC 2.0 message handling
-   - Add client connection management
-   - Implement proper error handling
+   - Implement additional tools from the findings document
+   - Add Neovim-specific tools (LSP, diagnostics, Telescope integration)
+   - Enhance existing tool implementations
 
-2. **MCP Tool Implementation**
+2. **Performance Optimization**
 
-   - Implement all required tools from the findings document
-   - Map VS Code concepts to Neovim equivalents
-   - Test each tool thoroughly
+   - Monitor WebSocket server performance under load
+   - Optimize selection tracking for large files
+   - Fine-tune debouncing and event handling
 
-3. **Selection Tracking Enhancement**
+3. **User Experience**
 
-   - Improve selection change detection
-   - Ensure compatibility with various Neovim modes
-   - Optimize performance with proper debouncing
+   - Add more user commands and keybindings
+   - Improve error messages and user feedback
+   - Create example configurations for popular setups
 
 4. **Integration Testing**
-   - Develop comprehensive integration tests
-   - Create mock Claude client for testing
-   - Test edge cases and error handling
+   - Test with real Claude Code CLI
+   - Validate compatibility across Neovim versions
+   - Create end-to-end test scenarios
 
 ## Testing
 
@@ -71,11 +70,16 @@ Run tests using:
 
 ```bash
 # Run all tests
-cd claudecode.nvim
-nvim --headless -u tests/minimal_init.lua -c "lua require('tests').run()"
+make test
 
 # Run specific test file
 nvim --headless -u tests/minimal_init.lua -c "lua require('tests.unit.config_spec')"
+
+# Run linting
+make check
+
+# Format code
+make format
 ```
 
 ## Implementation Guidelines
@@ -95,7 +99,7 @@ nvim --headless -u tests/minimal_init.lua -c "lua require('tests.unit.config_spe
 3. **Compatibility**
 
    - Support Neovim >= 0.8.0
-   - Minimize dependencies
+   - Zero external dependencies (pure Lua implementation)
    - Follow Neovim plugin best practices
 
 4. **Testing**
@@ -115,12 +119,13 @@ nvim --headless -u tests/minimal_init.lua -c "lua require('tests.unit.config_spe
 
 ### WebSocket Server
 
-The WebSocket server should use either:
+The WebSocket server is implemented in pure Lua with zero external dependencies:
 
-- [lua-resty-websocket](https://github.com/openresty/lua-resty-websocket) library
-- last resort, as unmaintained: [lua-websockets](https://github.com/lipp/lua-websockets)
-  library
-- Call out to a Node.js or Rust/Go server (if Lua implementation is problematic)
+- **Pure Neovim Implementation**: Uses `vim.loop` (libuv) for TCP operations
+- **RFC 6455 Compliant**: Full WebSocket protocol implementation
+- **JSON-RPC 2.0**: MCP message handling with proper framing
+- **Security**: Pure Lua SHA-1 implementation for WebSocket handshake
+- **Performance**: Optimized with lookup tables and efficient algorithms
 
 ### Custom Tools
 
@@ -133,7 +138,7 @@ Custom tools beyond the basic VS Code implementation could include:
 
 ## Next Steps
 
-1. Implement the WebSocket server with real functionality
-2. Complete the MCP tool implementations
-3. Add more comprehensive tests
-4. Create example configurations for popular Neovim setups
+1. Enhance MCP tool implementations with Neovim-specific features
+2. Add integration tests with real Claude Code CLI
+3. Optimize performance for large codebases
+4. Create example configurations for popular Neovim setups (LazyVim, NvChad, etc.)

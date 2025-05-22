@@ -8,7 +8,8 @@ A Neovim plugin that integrates with Claude Code CLI to provide a seamless AI co
 
 ## Features
 
-- 🔄 Bidirectional communication with Claude Code CLI
+- 🔄 **Pure Neovim WebSocket Server** - Zero external dependencies, uses only Neovim built-ins
+- 🌐 **RFC 6455 Compliant** - Full WebSocket protocol implementation with JSON-RPC 2.0
 - 🔍 Selection tracking to provide context to Claude
 - 🛠️ Integration with Neovim's buffer and window management
 - 📝 Support for file operations and diagnostics
@@ -19,8 +20,9 @@ A Neovim plugin that integrates with Claude Code CLI to provide a seamless AI co
 
 - Neovim >= 0.8.0
 - Claude Code CLI installed and in your PATH
-- Lua >= 5.1
 - **Optional for terminal integration:** [folke/snacks.nvim](https://github.com/folke/snacks.nvim) - Terminal management plugin (can use native Neovim terminal as an alternative).
+
+**Zero External Dependencies**: The WebSocket server is implemented using pure Neovim built-ins (`vim.loop`, `vim.json`, `vim.schedule`) with no external Lua libraries required.
 
 Note: The terminal feature can use `Snacks.nvim` or the native Neovim terminal. If `Snacks.nvim` is configured as the provider but is not available, it will fall back to the native terminal.
 

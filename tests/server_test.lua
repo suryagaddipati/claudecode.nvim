@@ -32,6 +32,66 @@ if not _G.vim then
       return result
     end,
 
+    json = {
+      encode = function(data)
+        return "{}"
+      end,
+      decode = function(json_str)
+        return {}
+      end,
+    },
+
+    loop = {
+      new_tcp = function()
+        return {
+          bind = function(self, host, port)
+            return true
+          end,
+          listen = function(self, backlog, callback)
+            return true
+          end,
+          accept = function(self, client)
+            return true
+          end,
+          read_start = function(self, callback)
+            return true
+          end,
+          write = function(self, data, callback)
+            if callback then
+              callback()
+            end
+            return true
+          end,
+          close = function(self)
+            return true
+          end,
+          is_closing = function(self)
+            return false
+          end,
+        }
+      end,
+      new_timer = function()
+        return {
+          start = function(self, timeout, repeat_interval, callback)
+            return true
+          end,
+          stop = function(self)
+            return true
+          end,
+          close = function(self)
+            return true
+          end,
+        }
+      end,
+      now = function()
+        return os.time() * 1000
+      end,
+    },
+
+    schedule = function(callback)
+      callback()
+    end,
+
     -- Added notify and log mocks
     notify = function(_, _, _) end,
     log = {
@@ -74,12 +134,13 @@ describe("Server module", function()
     assert(type(server.state.handlers) == "table")
   end)
 
-  it("should find an available port", function()
-    local port = server.find_available_port(10000, 65535)
+  it("should have get_status function", function()
+    local status = server.get_status()
 
-    assert(type(port) == "number")
-    assert(port >= 10000 == true)
-    assert(port <= 65535 == true)
+    assert(type(status) == "table")
+    assert(status.running == false)
+    assert(status.port == nil)
+    assert(status.client_count == 0)
   end)
 
   it("should start and stop the server", function()

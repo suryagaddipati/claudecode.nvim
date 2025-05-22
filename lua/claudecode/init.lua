@@ -83,6 +83,7 @@ function M.setup(opts)
   end
 
   M.state.config = vim.tbl_deep_extend("force", vim.deepcopy(default_config), opts)
+  vim.g.claudecode_user_config = vim.deepcopy(M.state.config) -- Make config globally accessible
 
   if terminal_opts then
     local terminal_setup_ok, terminal_module = pcall(require, "claudecode.terminal")

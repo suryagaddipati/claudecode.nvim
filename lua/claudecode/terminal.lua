@@ -37,8 +37,8 @@ local native_term_tip_shown = false
 -- @local
 -- @return table The current configuration.
 local function get_current_claudecode_config()
-  local user_conf = vim.g.claudecode_user_config or {}
-  return claudecode_config_module.apply(user_conf)
+  local user_config = vim.g.claudecode_user_config or {}
+  return claudecode_config_module.apply(user_config)
 end
 
 --- Determines the command to run in the terminal.
@@ -413,6 +413,11 @@ function M.toggle(opts_override)
       end
     end
   end
+end
+
+-- Test helper function to access managed terminal for testing
+function M._get_managed_terminal_for_test()
+  return managed_snacks_terminal
 end
 
 return M

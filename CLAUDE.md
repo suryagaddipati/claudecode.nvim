@@ -25,7 +25,8 @@ The plugin follows a modular architecture with these main components:
 1. **WebSocket Server** (`lua/claudecode/server/init.lua`)
 
    - Handles communication with Claude Code CLI using JSON-RPC 2.0 protocol
-   - Currently uses placeholder implementations
+   - Pure Lua implementation with RFC 6455 WebSocket compliance
+   - Zero external dependencies
 
 2. **Lock File System** (`lua/claudecode/lockfile.lua`)
 
@@ -47,12 +48,14 @@ The plugin follows a modular architecture with these main components:
 
 ## Development Status
 
-The plugin is in alpha stage with:
+The plugin is in beta stage with:
 
 - Core structure and configuration system implemented
-- Basic lock file management implemented
-- Selection tracking implemented
-- WebSocket server and MCP tool implementation still using placeholders
+- Complete WebSocket server with RFC 6455 compliance
+- Enhanced selection tracking with multi-mode support
+- Lock file management implemented
+- MCP tool framework implemented
+- Comprehensive test suite (55 tests passing)
 
 ## Testing Approach
 
@@ -70,10 +73,10 @@ The project uses the Busted testing framework:
 
 Current priorities for development are:
 
-1. Implementing a real WebSocket server with lua-websockets or similar
-2. Implementing MCP tools for file operations and editor features
-3. Enhancing selection tracking
-4. Adding comprehensive integration tests
+1. Enhancing MCP tools with additional file operations and editor features
+2. Adding Neovim-specific tools (LSP integration, diagnostics, Telescope)
+3. Performance optimization for large codebases
+4. Integration testing with real Claude Code CLI
 
 ## Development Principles
 
@@ -89,7 +92,7 @@ Current priorities for development are:
 ## Dependencies & Requirements
 
 - Neovim >= 0.8.0
-- Lua >= 5.1
+- **Zero external dependencies** - Pure Lua implementation
 - Development tools:
   - LuaCheck for linting
   - StyLua for formatting

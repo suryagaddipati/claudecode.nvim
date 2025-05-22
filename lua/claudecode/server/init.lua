@@ -1,32 +1,22 @@
 ---@brief WebSocket server for Claude Code Neovim integration
+local tcp_server = require("claudecode.server.tcp")
+local tools = require("claudecode.tools") -- Added: Require the tools module
+
 local M = {}
-math.randomseed(os.time()) -- Seed for random port selection
 
 ---@class ServerState
----@field server table|nil The server instance
+---@field server table|nil The TCP server instance
 ---@field port number|nil The port server is running on
 ---@field clients table A list of connected clients
 ---@field handlers table Message handlers by method name
+---@field ping_timer table|nil Timer for sending pings
 M.state = {
   server = nil,
   port = nil,
   clients = {},
   handlers = {},
+  ping_timer = nil,
 }
-
----@brief Find an available port in the given range
----@param min number The minimum port number
----@param max number The maximum port number
----@return number port The selected port
-function M.find_available_port(min, max)
-  -- TODO: Implement port scanning logic
-  if min > max then
-    -- Defaulting to min in this edge case to avoid math.random error.
-    -- Consider logging a warning or error here in a real scenario.
-    return min
-  end
-  return math.random(min, max)
-end
 
 ---@brief Initialize the WebSocket server
 ---@param config table Configuration options
@@ -37,26 +27,39 @@ function M.start(config)
     return false, "Server already running"
   end
 
-  -- TODO: Implement actual WebSocket server
-  -- This is a placeholder that would be replaced with real implementation
-
-  local port = M.find_available_port(config.port_range.min, config.port_range.max)
-
-  if not port then
-    return false, "No available ports found"
-  end
-
-  M.state.port = port
-
-  -- Mock server object for now
-  M.state.server = {
-    port = port,
-    clients = {},
-  }
-
+  -- Register message handlers first
   M.register_handlers()
 
-  return true, port
+  -- Create server callbacks
+  local callbacks = {
+    on_message = function(client, message)
+      M._handle_message(client, message)
+    end,
+    on_connect = function(client)
+      M.state.clients[client.id] = client
+    end,
+    on_disconnect = function(client, code, reason)
+      M.state.clients[client.id] = nil
+      print("WebSocket client disconnected: " .. client.id .. " (code: " .. code .. ", reason: " .. (reason or ""))
+    end,
+    on_error = function(error_msg)
+      print("WebSocket server error: " .. error_msg)
+    end,
+  }
+
+  -- Create and start TCP server
+  local server, error_msg = tcp_server.create_server(config, callbacks)
+  if not server then
+    return false, error_msg or "Unknown server creation error"
+  end
+
+  M.state.server = server
+  M.state.port = server.port
+
+  -- Start ping timer to keep connections alive
+  M.state.ping_timer = tcp_server.start_ping_timer(server, 30000)
+
+  return true, server.port
 end
 
 ---@brief Stop the WebSocket server
@@ -67,7 +70,15 @@ function M.stop()
     return false, "Server not running"
   end
 
-  -- TODO: Implement actual WebSocket server shutdown
+  -- Stop ping timer
+  if M.state.ping_timer then
+    M.state.ping_timer:stop()
+    M.state.ping_timer:close()
+    M.state.ping_timer = nil
+  end
+
+  -- Stop TCP server
+  tcp_server.stop_server(M.state.server)
 
   M.state.server = nil
   M.state.port = nil
@@ -76,47 +87,202 @@ function M.stop()
   return true
 end
 
+---@brief Handle incoming WebSocket message
+---@param client table The client that sent the message
+---@param message string The JSON-RPC message
+function M._handle_message(client, message)
+  -- Parse JSON-RPC message
+  local success, parsed = pcall(vim.json.decode, message)
+  if not success then
+    M.send_response(client, nil, nil, {
+      code = -32700,
+      message = "Parse error",
+      data = "Invalid JSON",
+    })
+    return
+  end
+
+  -- Validate JSON-RPC format
+  if type(parsed) ~= "table" or parsed.jsonrpc ~= "2.0" then
+    M.send_response(client, parsed.id, nil, {
+      code = -32600,
+      message = "Invalid Request",
+      data = "Not a valid JSON-RPC 2.0 request",
+    })
+    return
+  end
+
+  -- Handle request vs notification
+  if parsed.id then
+    -- Request - needs response
+    M._handle_request(client, parsed)
+  else
+    -- Notification - no response needed
+    M._handle_notification(client, parsed)
+  end
+end
+
+---@brief Handle JSON-RPC request (requires response)
+---@param client table The client that sent the request
+---@param request table The parsed JSON-RPC request
+function M._handle_request(client, request)
+  local method = request.method
+  local params = request.params or {}
+  local id = request.id
+
+  local handler = M.state.handlers[method]
+  if not handler then
+    M.send_response(client, id, nil, {
+      code = -32601,
+      message = "Method not found",
+      data = "Unknown method: " .. tostring(method),
+    })
+    return
+  end
+
+  -- Call handler with error protection
+  local success, result, error_data = pcall(handler, client, params)
+  if success then
+    if error_data then
+      M.send_response(client, id, nil, error_data)
+    else
+      M.send_response(client, id, result, nil)
+    end
+  else
+    M.send_response(client, id, nil, {
+      code = -32603,
+      message = "Internal error",
+      data = tostring(result), -- result contains error message when pcall fails
+    })
+  end
+end
+
+---@brief Handle JSON-RPC notification (no response)
+---@param client table The client that sent the notification
+---@param notification table The parsed JSON-RPC notification
+function M._handle_notification(client, notification)
+  local method = notification.method
+  local params = notification.params or {}
+
+  local handler = M.state.handlers[method]
+  if handler then
+    pcall(handler, client, params)
+  end
+end
+
 ---@brief Register message handlers for the server
 function M.register_handlers()
-  -- TODO: Implement message handler registration
-
   M.state.handlers = {
-    ["mcp.connect"] = function(_, _) -- '_' for unused args
-      -- TODO: Implement
+    ["initialize"] = function(client, params) -- Renamed from mcp.connect
+      -- Handle MCP connection handshake
+      return {
+        protocolVersion = "2024-11-05", -- TODO: Potentially negotiate based on params.protocolVersion
+        capabilities = {
+          -- Define server capabilities here
+          -- For now, mirroring client's example structure if useful, or keeping minimal
+          logging = vim.empty_dict(), -- Ensure this is an object {} not an array []
+          prompts = { listChanged = true },
+          resources = { subscribe = true, listChanged = true },
+          tools = { listChanged = true },
+        },
+        serverInfo = {
+          name = "claudecode-neovim",
+          version = "1.0.0", -- TODO: Use actual version
+        },
+        -- instructions = "Optional instructions for the client" -- If any
+      }
     end,
 
-    ["mcp.tool.invoke"] = function(_, _) -- '_' for unused args
-      -- TODO: Implement by dispatching to tool implementations
+    ["notifications/initialized"] = function(client, params) -- Added handler for initialized notification
+      -- No response needed for notifications
+    end,
+
+    ["prompts/list"] = function(client, params) -- Added handler for prompts/list
+      -- Return empty list of prompts
+      return {
+        prompts = {}, -- This will be encoded as an empty JSON array
+      }
+    end,
+
+    ["tools/list"] = function(client, params)
+      -- Return list of available tools
+      -- TODO: Implement actual tool discovery
+      return {
+        tools = {}, -- This will be encoded as an empty JSON array
+      }
+    end,
+
+    ["tools/call"] = function(client, params)
+      -- Handle tool invocation by dispatching to the tools module
+      local result_or_error_table = tools.handle_invoke(client, params)
+
+      if result_or_error_table.error then
+        -- Tool invocation resulted in an error
+        return nil, result_or_error_table.error
+      elseif result_or_error_table.result then
+        -- Tool invocation was successful
+        -- The tools.handle_invoke returns { result = { content = actual_tool_output } }
+        -- We need to return actual_tool_output as the result for the JSON-RPC response
+        return result_or_error_table.result.content, nil
+      else
+        -- Should not happen if tools.handle_invoke behaves correctly,
+        -- but handle as an internal error.
+        return nil,
+          {
+            code = -32603,
+            message = "Internal error",
+            data = "Tool handler returned unexpected format",
+          }
+      end
     end,
   }
 end
 
 ---@brief Send a message to a client
----@param _client table The client to send to
----@param _method string The method name
----@param _params table|nil The parameters to send
+---@param client table The client to send to
+---@param method string The method name
+---@param params table|nil The parameters to send
 ---@return boolean success Whether message was sent successfully
-function M.send(_client, _method, _params) -- Prefix unused params with underscore
-  -- TODO: Implement sending WebSocket message
+function M.send(client, method, params)
+  if not M.state.server then
+    return false
+  end
 
+  local message = {
+    jsonrpc = "2.0",
+    method = method,
+    params = params or vim.empty_dict(),
+  }
+
+  local json_message = vim.json.encode(message)
+  tcp_server.send_to_client(M.state.server, client.id, json_message)
   return true
 end
 
 ---@brief Send a response to a client
----@param _client table The client to send to
----@param id number|string The request ID to respond to
+---@param client table The client to send to
+---@param id number|string|nil The request ID to respond to
 ---@param result any|nil The result data if successful
 ---@param error_data table|nil The error data if failed
 ---@return boolean success Whether response was sent successfully
-function M.send_response(_client, id, result, error_data)
-  -- TODO: Implement sending WebSocket response
-
-  if error_data then
-    local _ = { jsonrpc = "2.0", id = id, error = error_data } -- luacheck: ignore
-  else
-    local _ = { jsonrpc = "2.0", id = id, result = result } -- luacheck: ignore
+function M.send_response(client, id, result, error_data)
+  if not M.state.server then
+    return false
   end
 
+  local response = {
+    jsonrpc = "2.0",
+    id = id,
+  }
+
+  if error_data then
+    response.error = error_data
+  else
+    response.result = result
+  end
+
+  local json_response = vim.json.encode(response)
+  tcp_server.send_to_client(M.state.server, client.id, json_response)
   return true
 end
 
@@ -125,13 +291,38 @@ end
 ---@param params table|nil The parameters to send
 ---@return boolean success Whether broadcast was successful
 function M.broadcast(method, params)
-  -- TODO: Implement broadcasting to all clients
-
-  for _, client in pairs(M.state.clients) do
-    M.send(client, method, params)
+  if not M.state.server then
+    return false
   end
 
+  local message = {
+    jsonrpc = "2.0",
+    method = method,
+    params = params or vim.empty_dict(),
+  }
+
+  local json_message = vim.json.encode(message)
+  tcp_server.broadcast(M.state.server, json_message)
   return true
+end
+
+---@brief Get server status information
+---@return table status Server status information
+function M.get_status()
+  if not M.state.server then
+    return {
+      running = false,
+      port = nil,
+      client_count = 0,
+    }
+  end
+
+  return {
+    running = true,
+    port = M.state.port,
+    client_count = tcp_server.get_client_count(M.state.server),
+    clients = tcp_server.get_clients_info(M.state.server),
+  }
 end
 
 return M

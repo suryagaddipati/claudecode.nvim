@@ -25,14 +25,13 @@ describe("WebSocket Server", function()
   -- Run setup before each test
   setup()
 
-  it("should find an available port", function()
-    local min_port = 10000
-    local max_port = 65535
+  it("should have a get_status function", function()
+    local status = server.get_status()
 
-    local port = server.find_available_port(min_port, max_port)
-
-    -- Instead of expecting a specific port, just check if it's in the valid range
-    expect(port >= min_port and port <= max_port).to_be_true()
+    expect(status).to_be_table()
+    expect(status.running).to_be_false()
+    expect(status.port).to_be_nil()
+    expect(status.client_count).to_be(0)
   end)
 
   it("should start server successfully", function()
@@ -113,13 +112,17 @@ describe("WebSocket Server", function()
     server.register_handlers()
 
     expect(server.state.handlers).to_be_table()
-    expect(type(server.state.handlers["mcp.connect"])).to_be("function") -- Function, not table
-    expect(type(server.state.handlers["mcp.tool.invoke"])).to_be("function") -- Function, not table
+    expect(type(server.state.handlers["initialize"])).to_be("function") -- Function, not table
+    expect(type(server.state.handlers["tools/list"])).to_be("function") -- Function, not table
   end)
 
   it("should send message to client", function()
+    -- Start server first
+    local config = { port_range = { min = 10000, max = 65535 } }
+    server.start(config)
+
     -- Mock client
-    local client = {}
+    local client = { id = "test_client" }
 
     local method = "test_method"
     local params = { foo = "bar" }
@@ -127,11 +130,18 @@ describe("WebSocket Server", function()
     local success = server.send(client, method, params)
 
     expect(success).to_be_true()
+
+    -- Clean up
+    server.stop()
   end)
 
   it("should send response to client", function()
+    -- Start server first
+    local config = { port_range = { min = 10000, max = 65535 } }
+    server.start(config)
+
     -- Mock client
-    local client = {}
+    local client = { id = "test_client" }
 
     local id = "test_id"
     local result = { foo = "bar" }
@@ -139,14 +149,15 @@ describe("WebSocket Server", function()
     local success = server.send_response(client, id, result)
 
     expect(success).to_be_true()
+
+    -- Clean up
+    server.stop()
   end)
 
   it("should broadcast to all clients", function()
-    -- Add mock clients
-    server.state.clients = {
-      client1 = {},
-      client2 = {},
-    }
+    -- Start server first
+    local config = { port_range = { min = 10000, max = 65535 } }
+    server.start(config)
 
     local method = "test_method"
     local params = { foo = "bar" }
@@ -154,6 +165,9 @@ describe("WebSocket Server", function()
     local success = server.broadcast(method, params)
 
     expect(success).to_be_true()
+
+    -- Clean up
+    server.stop()
   end)
 
   -- Clean up after all tests
