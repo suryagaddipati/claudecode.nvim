@@ -15,6 +15,7 @@ if not snacks_available then
 end
 
 local claudecode_config_module = require("claudecode.config")
+local claudecode_server_module = require("claudecode.server")
 
 local term_module_config = {
   split_side = "right", -- 'left' or 'right'
@@ -136,10 +137,11 @@ end
 
 --- Opens a new terminal using native Neovim functions.
 -- @local
--- @param command string The command to run.
+-- @param base_command string The base command to run.
+-- @param env_table table Environment variables for the command.
 -- @param effective_term_config table Configuration for split_side and split_width_percentage.
 -- @return boolean True if successful, false otherwise.
-local function open_fallback_terminal(command, effective_term_config)
+local function open_fallback_terminal(base_command, env_table, effective_term_config)
   if is_fallback_terminal_valid() then -- Should not happen if called correctly, but as a safeguard
     vim.api.nvim_set_current_win(managed_fallback_terminal_winid)
     vim.cmd("startinsert")
@@ -169,7 +171,8 @@ local function open_fallback_terminal(command, effective_term_config)
   end)
   -- Note: vim.api.nvim_win_set_width is not needed here again as [N]vsplit handles it.
 
-  managed_fallback_terminal_jobid = vim.fn.termopen(command, {
+  managed_fallback_terminal_jobid = vim.fn.termopen(base_command, {
+    env = env_table,
     on_exit = function(job_id, _, _)
       vim.schedule(function()
         if job_id == managed_fallback_terminal_jobid then
@@ -274,9 +277,11 @@ end
 -- with any runtime overrides provided specifically for an open/toggle action.
 -- @local
 -- @param effective_term_config_for_snacks table Pre-calculated effective config for split_side, width.
+-- @param env_table table Environment variables for the command.
 -- @return table The options table for Snacks.
-local function build_snacks_opts(effective_term_config_for_snacks)
+local function build_snacks_opts(effective_term_config_for_snacks, env_table)
   return {
+    env = env_table,
     interactive = true, -- for auto_close and start_insert
     enter = true, -- focus the terminal when opened
     win = {
@@ -293,14 +298,36 @@ local function build_snacks_opts(effective_term_config_for_snacks)
   }
 end
 
+-- Helper function to get the base claude command and necessary environment variables.
+-- @return string|nil The base command string.
+-- @return table|nil The environment variables table.
+local function get_claude_command_and_env()
+  local base_command = get_claude_command()
+  if not base_command or base_command == "" then
+    vim.notify("Claude terminal base command cannot be determined.", vim.log.levels.ERROR)
+    return nil, nil
+  end
+
+  local sse_port_value = claudecode_server_module.state.port
+  local env_table = {
+    ENABLE_IDE_INTEGRATION = "true",
+  }
+
+  if sse_port_value then
+    env_table["CLAUDE_CODE_SSE_PORT"] = tostring(sse_port_value)
+  end
+
+  return base_command, env_table
+end
+
 --- Opens or focuses the Claude terminal.
 function M.open(opts_override)
   local provider = get_effective_terminal_provider()
-  local claude_command = get_claude_command()
   local effective_config = build_effective_term_config(opts_override)
+  local base_claude_command, claude_env_table = get_claude_command_and_env()
 
-  if not claude_command or claude_command == "" then -- Should not happen due to default in get_claude_command
-    vim.notify("Claude terminal command cannot be determined.", vim.log.levels.ERROR)
+  if not base_claude_command then
+    -- Error already notified by the helper function
     return
   end
 
@@ -319,8 +346,8 @@ function M.open(opts_override)
       end
       return
     end
-    local snacks_opts = build_snacks_opts(effective_config)
-    local term_instance = Snacks.terminal.open(claude_command, snacks_opts)
+    local snacks_opts = build_snacks_opts(effective_config, claude_env_table)
+    local term_instance = Snacks.terminal.open(base_claude_command, snacks_opts)
     if term_instance and term_instance:valid() then
       managed_snacks_terminal = term_instance
     else
@@ -331,7 +358,7 @@ function M.open(opts_override)
     if is_fallback_terminal_valid() then
       focus_fallback_terminal()
     else
-      if not open_fallback_terminal(claude_command, effective_config) then
+      if not open_fallback_terminal(base_claude_command, claude_env_table, effective_config) then
         vim.notify("Failed to open Claude terminal using native fallback.", vim.log.levels.ERROR)
       end
     end
@@ -357,11 +384,11 @@ end
 --- Toggles the Claude terminal open or closed.
 function M.toggle(opts_override)
   local provider = get_effective_terminal_provider()
-  local claude_command = get_claude_command()
   local effective_config = build_effective_term_config(opts_override)
+  local base_claude_command, claude_env_table = get_claude_command_and_env()
 
-  if not claude_command or claude_command == "" then
-    vim.notify("Claude terminal command cannot be determined.", vim.log.levels.ERROR)
+  if not base_claude_command then
+    -- Error already notified by the helper function
     return
   end
 
@@ -370,8 +397,8 @@ function M.toggle(opts_override)
       vim.notify("Snacks.nvim terminal provider selected but Snacks.terminal not available.", vim.log.levels.ERROR)
       return
     end
-    local snacks_opts = build_snacks_opts(effective_config)
-    local term_instance = Snacks.terminal.toggle(claude_command, snacks_opts)
+    local snacks_opts = build_snacks_opts(effective_config, claude_env_table)
+    local term_instance = Snacks.terminal.toggle(base_claude_command, snacks_opts)
     if term_instance and term_instance:valid() then
       managed_snacks_terminal = term_instance
     else
@@ -381,7 +408,7 @@ function M.toggle(opts_override)
     if is_fallback_terminal_valid() then
       close_fallback_terminal()
     else
-      if not open_fallback_terminal(claude_command, effective_config) then
+      if not open_fallback_terminal(base_claude_command, claude_env_table, effective_config) then
         vim.notify("Failed to open Claude terminal using native fallback (toggle).", vim.log.levels.ERROR)
       end
     end

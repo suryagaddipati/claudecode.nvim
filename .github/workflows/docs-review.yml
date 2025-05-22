@@ -1,0 +1,191 @@
+name: Documentation Review
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "**.lua"
+      - ".github/**"
+      - "plugin/**"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  review-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4
+        with:
+          fetch-depth: 0 # Fetch full history to analyze changes
+          persist-credentials: true
+
+      - name: Run Claude Code to review documentation
+        id: claude-review
+        uses: anthropics/claude-code-action@8b9d5bb25a638c9aa5103496c0139d99b4936d42 # beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            As a Documentation Validator, your task is to review the current code in this repository and ensure that the markdown documentation files (README.md, ARCHITECTURE.md, and DEVELOPMENT.md) are up-to-date and accurate.
+
+            Focus on these specific areas:
+            1. Configuration options - Ensure all config options in lua/claudecode/config.lua are accurately reflected in README.md
+            2. Commands and usage - Verify all commands and keymaps mentioned in plugin/claudecode.lua are correctly documented in README.md
+            3. Architecture details - Validate the module structure in ARCHITECTURE.md matches the actual codebase structure
+            4. Development status - Review the implementation status in DEVELOPMENT.md against the actual codebase
+            5. Terminal feature - Check that the terminal integration is documented correctly across all files
+
+            For any inconsistencies found:
+            1. Note the specific issue (what's incorrect, missing, or outdated)
+            2. Provide the correct information based on the current codebase
+            3. Create a corrected version of the relevant section
+
+            Output your findings in this format:
+            ```json
+            {
+              "review_date": "YYYY-MM-DD",
+              "files_checked": ["README.md", "ARCHITECTURE.md", "DEVELOPMENT.md"],
+              "issues_found": [
+                {
+                  "file": "path/to/file.md",
+                  "section": "Section title",
+                  "issue": "Description of inconsistency",
+                  "corrected_content": "The corrected markdown content"
+                }
+              ]
+            }
+            ```
+
+            If no issues are found, return an empty "issues_found" array.
+
+      - name: Process documentation updates
+        id: process-updates
+        shell: bash
+        # zizmor-disable-next-line template-injection
+        env:
+          CLAUDE_OUTPUT: ${{ steps.claude-review.outputs.result }}
+        run: |
+          # Extract issues from Claude's output
+
+          # Check if the output contains the expected JSON format
+          if ! echo "$CLAUDE_OUTPUT" | grep -q "\"issues_found\""; then
+            echo "No valid JSON output found from Claude review"
+            exit 0
+          fi
+
+          # Extract the JSON part (between ```json and ```)
+          echo "$CLAUDE_OUTPUT" | sed -n "/\`\`\`json/,/\`\`\`/p" | sed "1d;\$d" > json_output.txt
+          echo "JSON output extracted"
+
+          # Parse the JSON and check if there are issues
+          ISSUES_FOUND=$(jq ".issues_found | length" json_output.txt)
+          echo "Issues found: $ISSUES_FOUND"
+
+          # Clean up json_output.txt if no issues are found or after processing
+          if [ "$ISSUES_FOUND" -eq 0 ]; then
+            echo "No documentation issues found"
+            rm -f json_output.txt # Clean up if exiting early
+            exit 0
+          fi
+
+          if [ "$ISSUES_FOUND" -eq 0 ]; then
+            echo "No documentation issues found"
+            exit 0
+          fi
+
+          echo "Found $ISSUES_FOUND documentation issues to fix"
+          echo "issues_found=$ISSUES_FOUND" >> "$GITHUB_OUTPUT"
+
+          # Create a new branch for the fixes
+          BRANCH_NAME="docs/update-$(date +%Y%m%d%H%M%S)"
+          git checkout -b "$BRANCH_NAME"
+
+          # Apply each correction - use a safer approach
+          for i in $(seq 0 $((ISSUES_FOUND - 1))); do
+            # Extract each field safely into separate files
+            jq -r ".issues_found[$i].file" json_output.txt > issue_file.txt
+            jq -r ".issues_found[$i].section" json_output.txt > issue_section.txt
+            jq -r ".issues_found[$i].issue" json_output.txt > issue_desc.txt
+            jq -r ".issues_found[$i].corrected_content" json_output.txt > issue_content.txt
+
+            # Read from files
+            FILE=$(cat issue_file.txt)
+            SECTION=$(cat issue_section.txt)
+            ISSUE=$(cat issue_desc.txt)
+            CONTENT=$(cat issue_content.txt)
+
+            echo "Updating $FILE - Section: $SECTION"
+
+            # Escape content for sed using files for safety
+            sed -E "s/[\/&]/\\&/g" issue_content.txt > escaped_content.txt
+            ESCAPED_CONTENT=$(cat escaped_content.txt)
+
+            # Look for the section and apply the change
+            # This is a basic approach; more sophisticated section matching might be needed
+            if grep -q "$SECTION" "$FILE"; then
+              # Try to find the section and replace content from the section title until the next section
+              sed -i "/# $SECTION/,/# /c\\# $SECTION\n\n$ESCAPED_CONTENT\n\n# " "$FILE"
+            else
+              echo "Section not found: $SECTION in $FILE. Adding to the end of the file."
+              echo -e "\n# $SECTION\n\n$CONTENT" >> "$FILE"
+            fi
+          done
+
+          # Clean up temporary files used in the loop
+          rm -f issue_file.txt issue_section.txt issue_desc.txt issue_content.txt escaped_content.txt
+          # Clean up json_output.txt after it's fully processed
+          rm -f json_output.txt
+
+          # Set up git identity for Claude
+          git config --local user.email "noreply@anthropic.com"
+          git config --local user.name "Claude"
+
+          # Commit the changes
+          git add README.md ARCHITECTURE.md DEVELOPMENT.md
+          git commit -m "docs: update documentation based on code analysis"
+          git push origin "$BRANCH_NAME"
+
+          echo "branch_name=$BRANCH_NAME" >> "$GITHUB_OUTPUT"
+
+          # Create summary of changes to display in PR
+          CHANGES_SUMMARY=""
+          for i in $(seq 0 $((ISSUES_FOUND - 1))); do
+            FILE=$(echo "$JSON_OUTPUT" | jq -r ".issues_found[$i].file")
+            SECTION=$(echo "$JSON_OUTPUT" | jq -r ".issues_found[$i].section")
+            ISSUE=$(echo "$JSON_OUTPUT" | jq -r ".issues_found[$i].issue")
+
+            CHANGES_SUMMARY="${CHANGES_SUMMARY}- **${FILE}** (${SECTION}): ${ISSUE}\n"
+          done
+
+          {
+            echo "changes_summary<<EOF"
+            echo -e "$CHANGES_SUMMARY"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create Pull Request
+        if: steps.process-updates.outputs.issues_found > 0
+        uses: anthropics/claude-pr-action@8b9d5bb25a638c9aa5103496c0139d99b4936d42 # v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ steps.process-updates.outputs.branch_name }}
+          base: main
+          title: "docs: Update documentation to match current codebase"
+          body: |
+            This PR was automatically generated by Claude Code to update documentation files based on code analysis.
+
+            ## What's Changed
+
+            Documentation has been updated to match the current codebase. The following issues were addressed:
+
+            ${{ steps.process-updates.outputs.changes_summary }}
+
+            The following files were updated:
+            - README.md
+            - ARCHITECTURE.md
+            - DEVELOPMENT.md
+
+            Please review these changes to ensure they accurately reflect the current state of the project.

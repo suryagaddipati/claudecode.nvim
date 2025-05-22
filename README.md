@@ -21,7 +21,6 @@ A Neovim plugin that integrates with Claude Code CLI to provide a seamless AI co
 - Claude Code CLI installed and in your PATH
 - Lua >= 5.1
 - **Optional for terminal integration:** [folke/snacks.nvim](https://github.com/folke/snacks.nvim) - Terminal management plugin (can use native Neovim terminal as an alternative).
-- Optional: plenary.nvim for additional utilities
 
 Note: The terminal feature can use `Snacks.nvim` or the native Neovim terminal. If `Snacks.nvim` is configured as the provider but is not available, it will fall back to the native terminal.
 
@@ -35,7 +34,6 @@ Add the following to your plugins configuration:
 {
   "coder/claudecode.nvim",
   dependencies = {
-    "nvim-lua/plenary.nvim",
     "folke/snacks.nvim", -- Optional dependency for enhanced terminal
   },
   opts = {
@@ -68,7 +66,6 @@ For those who prefer a function-style config:
 {
   "coder/claudecode.nvim",
   dependencies = {
-    "nvim-lua/plenary.nvim",
     "folke/snacks.nvim", -- Optional dependency
   },
   config = function()
@@ -87,7 +84,6 @@ For those who prefer a function-style config:
 use {
   "coder/claudecode.nvim",
   requires = {
-    "nvim-lua/plenary.nvim",
     "folke/snacks.nvim", -- Optional dependency
   },
   config = function()
@@ -108,7 +104,6 @@ return {
     dir = "~/GitHub/claudecode.nvim",  -- Path to your local repository
     name = "claudecode.nvim",
     dependencies = {
-      "nvim-lua/plenary.nvim",
       "folke/snacks.nvim", -- Added dependency
     },
     dev = true,
@@ -185,19 +180,34 @@ require("claudecode").setup({
 
 ## Usage
 
-1. Start the Claude Code integration:
+1. Start the Claude Code integration with the interactive terminal:
 
    ```
-   :ClaudeCodeStart
+   :ClaudeCode
    ```
 
-2. This will start a WebSocket server and provide a command to launch Claude Code CLI with the proper environment variables.
+   This will:
 
-3. Send the current selection to Claude:
+   - Start the WebSocket server
+   - Open a terminal split with Claude Code CLI already connected
+   - Configure the necessary environment variables automatically
 
-   ```
-   :ClaudeCodeSend
-   ```
+2. You can now interact with Claude in the terminal window. To provide code context, you can:
+
+   - Make a selection in visual mode (`v` key), then run:
+
+     ```
+     :ClaudeCodeSend
+     ```
+
+   - This sends the selected lines with file references to Claude
+
+3. Switch between your code and the Claude terminal:
+
+   - Use normal Vim window navigation (`Ctrl+w` commands)
+   - Or toggle the terminal with `:ClaudeCode`
+   - Open/focus with `:ClaudeCodeOpen`
+   - Close with `:ClaudeCodeClose`
 
 4. Use Claude as normal - it will have access to your Neovim editor context!
 
