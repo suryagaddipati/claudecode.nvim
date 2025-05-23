@@ -35,7 +35,7 @@ claudecode.nvim/
 | Lock file management   | ✅ Done    | -        | Basic implementation complete            |
 | Selection tracking     | ✅ Done    | -        | Enhanced with multi-mode support         |
 | MCP tools              | 🚧 Started | Medium   | Basic framework, need more tools         |
-| Tests                  | ✅ Done    | -        | 55 tests passing, comprehensive coverage |
+| Tests                  | ✅ Done    | -        | 56 tests passing, comprehensive coverage |
 | CI pipeline            | ✅ Done    | -        | GitHub Actions configured                |
 | Documentation          | ✅ Done    | -        | Complete documentation                   |
 

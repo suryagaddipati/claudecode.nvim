@@ -2,7 +2,7 @@
 
 [![Tests](https://github.com/coder/claudecode.nvim/actions/workflows/test.yml/badge.svg)](https://github.com/coder/claudecode.nvim/actions/workflows/test.yml)
 ![Neovim version](https://img.shields.io/badge/Neovim-0.8%2B-green)
-![Status](https://img.shields.io/badge/Status-alpha-orange)
+![Status](https://img.shields.io/badge/Status-beta-blue)
 
 A Neovim plugin that integrates with Claude Code CLI to provide a seamless AI coding experience in Neovim.
 
@@ -222,13 +222,18 @@ require("claudecode").setup({
 
 ## Commands
 
-- `:ClaudeCodeStart` - Start the Claude Code integration server
-- `:ClaudeCodeStop` - Stop the server
-- `:ClaudeCodeStatus` - Show connection status
 - `:ClaudeCodeSend` - Send current selection to Claude
 - `:ClaudeCode` - Toggle the Claude Code interactive terminal window
 - `:ClaudeCodeOpen` - Open (or focus) the Claude Code terminal window
 - `:ClaudeCodeClose` - Close the Claude Code terminal window
+
+Note: The server starts automatically when the first command is used. To manually control the server, use the Lua API:
+
+```lua
+require("claudecode").start()  -- Start server
+require("claudecode").stop()   -- Stop server
+require("claudecode").status() -- Check status
+```
 
 ## Keymaps
 
