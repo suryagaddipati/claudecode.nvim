@@ -8,8 +8,8 @@ A Neovim plugin that integrates with Claude Code CLI to provide a seamless AI co
 
 ## Features
 
-- 🔄 **Pure Neovim WebSocket Server** - Zero external dependencies, uses only Neovim built-ins
-- 🌐 **RFC 6455 Compliant** - Full WebSocket protocol implementation with JSON-RPC 2.0
+- 🔄 **Pure Neovim WebSocket Server** (implemented with Neovim built-ins)
+- 🌐 **RFC 6455 Compliant** (WebSocket with JSON-RPC 2.0)
 - 🔍 Selection tracking to provide context to Claude
 - 🛠️ Integration with Neovim's buffer and window management
 - 📝 Support for file operations and diagnostics
@@ -22,7 +22,7 @@ A Neovim plugin that integrates with Claude Code CLI to provide a seamless AI co
 - Claude Code CLI installed and in your PATH
 - **Optional for terminal integration:** [folke/snacks.nvim](https://github.com/folke/snacks.nvim) - Terminal management plugin (can use native Neovim terminal as an alternative).
 
-**Zero External Dependencies**: The WebSocket server is implemented using pure Neovim built-ins (`vim.loop`, `vim.json`, `vim.schedule`) with no external Lua libraries required.
+The WebSocket server uses only Neovim built-ins (`vim.loop`, `vim.json`, `vim.schedule`) for its implementation.
 
 Note: The terminal feature can use `Snacks.nvim` or the native Neovim terminal. If `Snacks.nvim` is configured as the provider but is not available, it will fall back to the native terminal.
 
@@ -54,10 +54,10 @@ Add the following to your plugins configuration:
   config = true,
   -- Optional: Add convenient keymaps
   keys = {
-    { "<leader>cc", "<cmd>ClaudeCode<cr>", desc = "Toggle Claude Terminal" },
-    { "<leader>ck", "<cmd>ClaudeCodeSend<cr>", desc = "Send to Claude Code" },
-    { "<leader>co", "<cmd>ClaudeCodeOpen<cr>", desc = "Open Claude Terminal" },
-    { "<leader>cx", "<cmd>ClaudeCodeClose<cr>", desc = "Close Claude Terminal" },
+    { "<leader>ac", "<cmd>ClaudeCode<cr>", mode = { "n", "v" }, desc = "Toggle Claude Terminal" },
+    { "<leader>ak", "<cmd>ClaudeCodeSend<cr>", mode = { "n", "v" }, desc = "Send to Claude Code" },
+    { "<leader>ao", "<cmd>ClaudeCodeOpen<cr>", mode = { "n", "v" }, desc = "Open/Focus Claude Terminal" },
+    { "<leader>ax", "<cmd>ClaudeCodeClose<cr>", mode = { "n", "v" }, desc = "Close Claude Terminal" },
   },
 }
 ```
@@ -124,10 +124,10 @@ return {
     },
     config = true,
     keys = {
-      { "<leader>cc", "<cmd>ClaudeCode<cr>", desc = "Toggle Claude Terminal" },
-      { "<leader>ck", "<cmd>ClaudeCodeSend<cr>", desc = "Send to Claude Code" },
-      { "<leader>co", "<cmd>ClaudeCodeOpen<cr>", desc = "Open Claude Terminal" },
-      { "<leader>cx", "<cmd>ClaudeCodeClose<cr>", desc = "Close Claude Terminal" },
+      { "<leader>ac", "<cmd>ClaudeCode<cr>", mode = { "n", "v" }, desc = "Toggle Claude Terminal" },
+      { "<leader>ak", "<cmd>ClaudeCodeSend<cr>", mode = { "n", "v" }, desc = "Send to Claude Code" },
+      { "<leader>ao", "<cmd>ClaudeCodeOpen<cr>", mode = { "n", "v" }, desc = "Open/Focus Claude Terminal" },
+      { "<leader>ax", "<cmd>ClaudeCodeClose<cr>", mode = { "n", "v" }, desc = "Close Claude Terminal" },
     },
   },
 }
@@ -135,10 +135,10 @@ return {
 
 This configuration:
 
-1. Uses the `dir` parameter to specify the local path to your repository
-2. Sets `dev = true` to enable development mode
-3. Sets a more verbose log level for debugging
-4. Adds convenient keymaps for testing
+1. Specifies the local repository path using the `dir` parameter.
+2. Enables development mode via `dev = true`.
+3. Sets a more verbose `log_level` for debugging.
+4. Includes convenient keymaps for easier testing.
 
 ## Configuration
 
@@ -213,7 +213,7 @@ require("claudecode").setup({
 
    - Use normal Vim window navigation (`Ctrl+w` commands)
    - Or toggle the terminal with `:ClaudeCode`
-   - Open/focus with `:ClaudeCodeOpen`
+   - Open/focus with `:ClaudeCodeOpen` (can also be used from Visual mode to switch focus after selection)
    - Close with `:ClaudeCodeClose`
 
 4. Use Claude as normal - it will have access to your Neovim editor context!
@@ -233,12 +233,12 @@ require("claudecode").setup({
 No default keymaps are provided. Add your own in your configuration:
 
 ```lua
-vim.keymap.set("n", "<leader>cc", "<cmd>ClaudeCode<cr>", { desc = "Toggle Claude Terminal" })
-vim.keymap.set({"n", "v"}, "<leader>ck", "<cmd>ClaudeCodeSend<cr>", { desc = "Send to Claude Code" })
+vim.keymap.set({"n", "v"}, "<leader>ac", "<cmd>ClaudeCode<cr>", { desc = "Toggle Claude Terminal" })
+vim.keymap.set({"n", "v"}, "<leader>ak", "<cmd>ClaudeCodeSend<cr>", { desc = "Send to Claude Code" })
 
 -- Or more specific maps:
-vim.keymap.set("n", "<leader>co", "<cmd>ClaudeCodeOpen<cr>", { desc = "Open Claude Terminal" })
-vim.keymap.set("n", "<leader>cx", "<cmd>ClaudeCodeClose<cr>", { desc = "Close Claude Terminal" })
+vim.keymap.set({"n", "v"}, "<leader>ao", "<cmd>ClaudeCodeOpen<cr>", { desc = "Open/Focus Claude Terminal" })
+vim.keymap.set({"n", "v"}, "<leader>ax", "<cmd>ClaudeCodeClose<cr>", { desc = "Close Claude Terminal" })
 ```
 
 ## Architecture

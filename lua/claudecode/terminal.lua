@@ -290,7 +290,7 @@ local function build_snacks_opts(effective_term_config_for_snacks, env_table)
       height = 0, -- 0 for full height in snacks.win
       relative = "editor",
       on_close = function(self) -- self here is the snacks.win instance
-        if managed_snacks_terminal and managed_snacks_terminal.winid == self.winid then
+        if managed_snacks_terminal and managed_snacks_terminal.win == self.win then
           managed_snacks_terminal = nil
         end
       end,
@@ -298,9 +298,10 @@ local function build_snacks_opts(effective_term_config_for_snacks, env_table)
   }
 end
 
--- Helper function to get the base claude command and necessary environment variables.
--- @return string|nil The base command string.
--- @return table|nil The environment variables table.
+--- Gets the base claude command and necessary environment variables.
+-- @local
+-- @return string|nil base_command The base command string, or nil on failure.
+-- @return table|nil env_table The environment variables table, or nil on failure.
 local function get_claude_command_and_env()
   local base_command = get_claude_command()
   if not base_command or base_command == "" then
@@ -321,6 +322,7 @@ local function get_claude_command_and_env()
 end
 
 --- Opens or focuses the Claude terminal.
+-- @param opts_override table (optional) Overrides for terminal appearance (split_side, split_width_percentage).
 function M.open(opts_override)
   local provider = get_effective_terminal_provider()
   local effective_config = build_effective_term_config(opts_override)
@@ -382,14 +384,14 @@ function M.close()
 end
 
 --- Toggles the Claude terminal open or closed.
+-- @param opts_override table (optional) Overrides for terminal appearance (split_side, split_width_percentage).
 function M.toggle(opts_override)
   local provider = get_effective_terminal_provider()
   local effective_config = build_effective_term_config(opts_override)
   local base_claude_command, claude_env_table = get_claude_command_and_env()
 
   if not base_claude_command then
-    -- Error already notified by the helper function
-    return
+    return -- Error already notified
   end
 
   if provider == "snacks" then
@@ -398,15 +400,51 @@ function M.toggle(opts_override)
       return
     end
     local snacks_opts = build_snacks_opts(effective_config, claude_env_table)
-    local term_instance = Snacks.terminal.toggle(base_claude_command, snacks_opts)
-    if term_instance and term_instance:valid() then
-      managed_snacks_terminal = term_instance
+
+    if managed_snacks_terminal and managed_snacks_terminal:valid() and managed_snacks_terminal.win then
+      local claude_term_neovim_win_id = managed_snacks_terminal.win
+      local current_neovim_win_id = vim.api.nvim_get_current_win()
+
+      if claude_term_neovim_win_id == current_neovim_win_id then
+        -- Snacks.terminal.toggle will return an invalid instance or nil.
+        -- The on_close callback (defined in build_snacks_opts) will set managed_snacks_terminal to nil.
+        local closed_instance = Snacks.terminal.toggle(base_claude_command, snacks_opts)
+        if closed_instance and closed_instance:valid() then
+          -- This would be unexpected if it was supposed to close and on_close fired.
+          -- As a fallback, ensure our state reflects what Snacks returned if it's somehow still valid.
+          managed_snacks_terminal = closed_instance
+        end
+      else
+        vim.api.nvim_set_current_win(claude_term_neovim_win_id)
+        if managed_snacks_terminal.buf and vim.api.nvim_buf_is_valid(managed_snacks_terminal.buf) then
+          if vim.api.nvim_buf_get_option(managed_snacks_terminal.buf, "buftype") == "terminal" then
+            vim.api.nvim_win_call(claude_term_neovim_win_id, function()
+              vim.cmd("startinsert")
+            end)
+          end
+        end
+      end
     else
-      managed_snacks_terminal = nil -- Snacks.toggle returns nil if closed or failed
+      local term_instance = Snacks.terminal.toggle(base_claude_command, snacks_opts)
+      if term_instance and term_instance:valid() and term_instance.win then
+        managed_snacks_terminal = term_instance
+      else
+        managed_snacks_terminal = nil -- Ensure it's nil if open failed or instance invalid
+        if not (term_instance == nil and managed_snacks_terminal == nil) then -- Avoid notify if toggle returned nil and we set to nil
+          vim.notify("Failed to open Snacks terminal or instance invalid after toggle.", vim.log.levels.WARN)
+        end
+      end
     end
   elseif provider == "native" then
     if is_fallback_terminal_valid() then
-      close_fallback_terminal()
+      local claude_term_neovim_win_id = managed_fallback_terminal_winid
+      local current_neovim_win_id = vim.api.nvim_get_current_win()
+
+      if claude_term_neovim_win_id == current_neovim_win_id then
+        close_fallback_terminal()
+      else
+        focus_fallback_terminal() -- This already calls startinsert
+      end
     else
       if not open_fallback_terminal(base_claude_command, claude_env_table, effective_config) then
         vim.notify("Failed to open Claude terminal using native fallback (toggle).", vim.log.levels.ERROR)
@@ -415,7 +453,10 @@ function M.toggle(opts_override)
   end
 end
 
--- Test helper function to access managed terminal for testing
+--- Gets the managed terminal instance for testing purposes.
+-- NOTE: This function is intended for use in tests to inspect internal state.
+-- The underscore prefix indicates it's not part of the public API for regular use.
+-- @return table|nil The managed Snacks terminal instance, or nil.
 function M._get_managed_terminal_for_test()
   return managed_snacks_terminal
 end
