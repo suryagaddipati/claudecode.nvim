@@ -23,7 +23,8 @@ jobs:
         shell: bash
         # zizmor-disable-next-line template-injection
         run: |
-          COMMIT_MSG=$(git log -1 --pretty=%B)
+          # Get only the first line of commit message (subject line)
+          COMMIT_MSG=$(git log -1 --pretty=%s)
           {
             echo "commit_msg=${COMMIT_MSG}"
             echo "commit_type=$(echo "${COMMIT_MSG}" | grep -o '^feat\|^fix\|^docs\|^style\|^refactor\|^perf\|^test\|^build\|^ci\|^chore' || echo 'other')"

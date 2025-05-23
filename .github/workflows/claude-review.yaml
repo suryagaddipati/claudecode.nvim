@@ -20,7 +20,7 @@ jobs:
 
       - name: Run Code Review with Claude
         id: code-review
-        uses: anthropics/claude-code-action@8b9d5bb25a638c9aa5103496c0139d99b4936d42 # beta
+        uses: anthropics/claude-code-action@8e84799f37d42f24e0ebae41205346879bdcab5a # v0.0.7
         with:
           # Define the review focus areas
           prompt: "Review the PR changes. Focus on code quality, potential bugs, and performance issues. Suggest improvements where appropriate."
