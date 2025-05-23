@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Development environment with Nix flakes
 - Comprehensive luacheck linting with zero warnings
 - **Selection Tracking**: Added a configurable delay (`visual_demotion_delay_ms`) before a visual selection is "demoted" after exiting visual mode. This helps preserve visual context when quickly switching to the Claude terminal.
+- **At-Mention Feature**: Implemented the `:ClaudeCodeSend` command to send visual selections as `at_mentioned` notifications to Claude, providing focused code context. This includes updates to selection tracking and server broadcasting logic.
 
 ### Changed
 

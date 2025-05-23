@@ -1,5 +1,3 @@
--- Simple server module tests
-
 -- Create minimal vim mock if it doesn't exist
 if not _G.vim then
   _G.vim = {
@@ -104,22 +102,40 @@ if not _G.vim then
         TRACE = 5,
       },
     },
+    o = {},
+    bo = setmetatable({}, {
+      __index = function(t, k)
+        if type(k) == "number" then
+          if not t[k] then
+            t[k] = {} -- Return a new table for vim.bo[bufnr]
+          end
+          return t[k]
+        end
+        return nil
+      end,
+    }),
+    diagnostic = {
+      get = function()
+        return {}
+      end,
+      -- Add other vim.diagnostic functions if needed by tests
+    },
+    empty_dict = function()
+      return {}
+    end,
   }
 end
 
 describe("Server module", function()
   local server
 
-  -- Set up before each test
   setup(function()
     -- Reset the module
     package.loaded["claudecode.server"] = nil
 
-    -- Load module
     server = require("claudecode.server")
   end)
 
-  -- Clean up after each test
   teardown(function()
     if server.state.server then
       server.stop()
@@ -151,7 +167,6 @@ describe("Server module", function()
       },
     }
 
-    -- Start the server
     local start_success, result = server.start(config)
 
     assert(start_success == true)
@@ -159,7 +174,6 @@ describe("Server module", function()
     assert(server.state.server ~= nil)
     assert(server.state.port ~= nil)
 
-    -- Stop the server
     local stop_success = server.stop()
 
     assert(stop_success == true)

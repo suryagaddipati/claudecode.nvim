@@ -15,6 +15,7 @@ A Neovim plugin that integrates with Claude Code CLI to provide a seamless AI co
 - 📝 Support for file operations and diagnostics
 - 🖥️ Interactive vertical split terminal for Claude sessions (supports `folke/snacks.nvim` or native Neovim terminal)
 - 🔒 Automatic cleanup on exit - server shutdown and lockfile removal
+- 💬 **At-Mentions**: Send visual selections as `at_mentioned` context to Claude using `:'<,'>ClaudeCodeSend`.
 
 ## Requirements
 
@@ -201,13 +202,14 @@ require("claudecode").setup({
 
 2. You can now interact with Claude in the terminal window. To provide code context, you can:
 
-   - Make a selection in visual mode (`v` key), then run:
+   - **Send Visual Selection as At-Mention**: Make a selection in visual mode (`v`, `V`, or `Ctrl-V`), then run:
 
-     ```
-     :ClaudeCodeSend
+     ```vim
+     :'<,'>ClaudeCodeSend
      ```
 
-   - This sends the selected lines with file references to Claude
+     This sends the selected file path and line range as an `at_mentioned` notification to Claude,
+     allowing Claude to focus on that specific part of your code.
 
 3. Switch between your code and the Claude terminal:
 

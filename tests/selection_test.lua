@@ -1,9 +1,5 @@
--- Simple selection module tests
-
--- Create mock vim API
 if not _G.vim then
   _G.vim = {
-    -- Mock values
     _buffers = {},
     _windows = {},
     _commands = {},
@@ -12,9 +8,7 @@ if not _G.vim then
     _options = {},
     _current_mode = "n",
 
-    -- Mock API
     api = {
-      -- Create user command
       nvim_create_user_command = function(name, callback, opts)
         _G.vim._commands[name] = {
           callback = callback,
@@ -22,7 +16,6 @@ if not _G.vim then
         }
       end,
 
-      -- Create autocommand group
       nvim_create_augroup = function(name, opts)
         _G.vim._autocmds[name] = {
           opts = opts,
@@ -31,7 +24,6 @@ if not _G.vim then
         return name
       end,
 
-      -- Create autocommand
       nvim_create_autocmd = function(events, opts)
         local group = opts.group or "default"
         if not _G.vim._autocmds[group] then
@@ -50,39 +42,32 @@ if not _G.vim then
         return id
       end,
 
-      -- Clear autocommands
       nvim_clear_autocmds = function(opts)
         if opts.group then
           _G.vim._autocmds[opts.group] = nil
         end
       end,
 
-      -- Get current buffer
       nvim_get_current_buf = function()
         return 1
       end,
 
-      -- Get buffer name
       nvim_buf_get_name = function(bufnr)
         return _G.vim._buffers[bufnr] and _G.vim._buffers[bufnr].name or ""
       end,
 
-      -- Get current window
       nvim_get_current_win = function()
         return 1
       end,
 
-      -- Get cursor position
       nvim_win_get_cursor = function(winid)
         return _G.vim._windows[winid] and _G.vim._windows[winid].cursor or { 1, 0 }
       end,
 
-      -- Get mode
       nvim_get_mode = function()
         return { mode = _G.vim._current_mode }
       end,
 
-      -- Get buffer lines
       nvim_buf_get_lines = function(bufnr, start, end_line, _strict) -- Prefix unused param with underscore
         if not _G.vim._buffers[bufnr] then
           return {}
@@ -98,7 +83,6 @@ if not _G.vim then
         return result
       end,
 
-      -- Echo message
       nvim_echo = function(chunks, history, opts)
         -- Just store the last echo message for testing
         _G.vim._last_echo = {
@@ -108,15 +92,12 @@ if not _G.vim then
         }
       end,
 
-      -- Error message
       nvim_err_writeln = function(msg)
         _G.vim._last_error = msg
       end,
     },
 
-    -- Mock fn functions
     fn = {
-      -- Get buffer number
       bufnr = function(name)
         for bufnr, buf in pairs(_G.vim._buffers) do
           if buf.name == name then
@@ -126,7 +107,6 @@ if not _G.vim then
         return -1
       end,
 
-      -- Get visual selection start position
       getpos = function(mark)
         if mark == "'<" then
           return { 0, 1, 1, 0 }
@@ -137,28 +117,22 @@ if not _G.vim then
       end,
     },
 
-    -- Mock defer_fn
     defer_fn = function(fn, _timeout) -- Prefix unused param with underscore
       -- For testing, we'll execute immediately
       fn()
     end,
 
-    -- Mock vim.loop
     loop = {
-      -- Timer functions
       timer_stop = function(_timer) -- Prefix unused param with underscore
         return true
       end,
     },
 
-    -- Test helpers
     test = {
-      -- Set mode
       set_mode = function(mode)
         _G.vim._current_mode = mode
       end,
 
-      -- Set cursor position
       set_cursor = function(win, row, col)
         if not _G.vim._windows[win] then
           _G.vim._windows[win] = {}
@@ -166,7 +140,6 @@ if not _G.vim then
         _G.vim._windows[win].cursor = { row, col }
       end,
 
-      -- Add a buffer
       add_buffer = function(bufnr, name, content)
         local lines = {}
         if type(content) == "string" then
@@ -186,7 +159,6 @@ if not _G.vim then
       end,
     },
 
-    -- Added notify and log mocks
     notify = function(_, _, _) end,
     log = {
       levels = {
@@ -198,9 +170,74 @@ if not _G.vim then
         TRACE = 5,
       },
     },
+    o = {}, -- Mock for vim.o
+    bo = setmetatable({}, { -- Mock for vim.bo and vim.bo[bufnr]
+      __index = function(t, k)
+        if type(k) == "number" then
+          if not t[k] then
+            t[k] = {} -- Return a new table for vim.bo[bufnr]
+          end
+          return t[k]
+        end
+        return nil
+      end,
+    }),
+    diagnostic = { -- Mock for vim.diagnostic
+      get = function()
+        return {}
+      end,
+      -- Add other vim.diagnostic functions if needed by tests
+    },
+    empty_dict = function()
+      return {}
+    end, -- Mock for vim.empty_dict()
+    g = {}, -- Mock for vim.g
+    deepcopy = function(orig)
+      local orig_type = type(orig)
+      local copy
+      if orig_type == "table" then
+        copy = {}
+        for orig_key, orig_value in next, orig, nil do
+          copy[_G.vim.deepcopy(orig_key)] = _G.vim.deepcopy(orig_value)
+        end
+        setmetatable(copy, _G.vim.deepcopy(getmetatable(orig)))
+      else
+        copy = orig
+      end
+      return copy
+    end,
+    tbl_deep_extend = function(behavior, ...)
+      local tables = { ... }
+      if #tables == 0 then
+        return {}
+      end
+      local result = _G.vim.deepcopy(tables[1])
+
+      for i = 2, #tables do
+        local source = tables[i]
+        if type(source) == "table" then
+          for k, v in pairs(source) do
+            if behavior == "force" then
+              if type(v) == "table" and type(result[k]) == "table" then
+                result[k] = _G.vim.tbl_deep_extend(behavior, result[k], v)
+              else
+                result[k] = _G.vim.deepcopy(v)
+              end
+            elseif behavior == "keep" then
+              if result[k] == nil then
+                result[k] = _G.vim.deepcopy(v)
+              elseif type(v) == "table" and type(result[k]) == "table" then
+                result[k] = _G.vim.tbl_deep_extend(behavior, result[k], v)
+              end
+              -- Add other behaviors like "error" if needed by tests
+            end
+          end
+        end
+      end
+      return result
+    end,
   }
 
-  -- Initialize with a test buffer
   _G.vim.test.add_buffer(1, "/path/to/test.lua", "local test = {}\nreturn test")
   _G.vim.test.set_cursor(1, 1, 0)
 end
@@ -219,16 +256,12 @@ describe("Selection module", function()
     last_broadcast = nil,
   }
 
-  -- Set up before each test
   setup(function()
-    -- Reset the module
     package.loaded["claudecode.selection"] = nil
 
-    -- Load module
     selection = require("claudecode.selection")
   end)
 
-  -- Clean up after each test
   teardown(function()
     if selection.state.tracking_enabled then
       selection.disable()
@@ -245,13 +278,11 @@ describe("Selection module", function()
   end)
 
   it("should enable and disable tracking", function()
-    -- Enable tracking
     selection.enable(mock_server)
 
     assert(selection.state.tracking_enabled == true)
     assert(mock_server == selection.server)
 
-    -- Disable tracking
     selection.disable()
 
     assert(selection.state.tracking_enabled == false)
@@ -260,18 +291,15 @@ describe("Selection module", function()
   end)
 
   it("should get cursor position in normal mode", function()
-    -- Set up mock environment
     local old_win_get_cursor = _G.vim.api.nvim_win_get_cursor
     _G.vim.api.nvim_win_get_cursor = function()
       return { 2, 3 } -- row 2, col 3 (1-based)
     end
 
-    -- Set normal mode
     _G.vim.test.set_mode("n")
 
     local cursor_pos = selection.get_cursor_position()
 
-    -- Restore original function
     _G.vim.api.nvim_win_get_cursor = old_win_get_cursor
 
     assert(type(cursor_pos) == "table")
@@ -346,19 +374,14 @@ describe("Selection module", function()
       },
     }
 
-    -- Set up latest selection
     selection.state.latest_selection = old_selection
 
-    -- Test same selection
     assert(selection.has_selection_changed(new_selection_same) == false)
 
-    -- Test different file
     assert(selection.has_selection_changed(new_selection_diff_file) == true)
 
-    -- Test different text
     assert(selection.has_selection_changed(new_selection_diff_text) == true)
 
-    -- Test different position
     assert(selection.has_selection_changed(new_selection_diff_pos) == true)
   end)
 end)

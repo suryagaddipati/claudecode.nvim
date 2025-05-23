@@ -1,25 +1,19 @@
--- Unit tests for configuration module
 -- luacheck: globals expect
 require("tests.busted_setup")
 
 describe("Configuration", function()
   local config
 
-  -- Set up before each test
   local function setup()
-    -- Reset loaded modules
     package.loaded["claudecode.config"] = nil
 
-    -- Load the module under test
     config = require("claudecode.config")
   end
 
-  -- Clean up after each test
   local function teardown()
     -- Nothing to clean up for now
   end
 
-  -- Run setup before each test
   setup()
 
   it("should have default configuration", function()
@@ -37,6 +31,7 @@ describe("Configuration", function()
       terminal_cmd = "toggleterm",
       log_level = "debug",
       track_selection = false,
+      visual_demotion_delay_ms = 50,
     }
 
     local success = config.validate(valid_config)
@@ -56,7 +51,6 @@ describe("Configuration", function()
     end)
 
     expect(success).to_be_false()
-    -- Error message would contain "Invalid port range"
   end)
 
   it("should reject invalid log level", function()
@@ -72,7 +66,6 @@ describe("Configuration", function()
     end)
 
     expect(success).to_be_false()
-    -- Error message would contain "log_level must be one of"
   end)
 
   it("should merge user config with defaults", function()
@@ -89,6 +82,5 @@ describe("Configuration", function()
     expect(merged_config.track_selection).to_be(config.defaults.track_selection)
   end)
 
-  -- Clean up after all tests
   teardown()
 end)

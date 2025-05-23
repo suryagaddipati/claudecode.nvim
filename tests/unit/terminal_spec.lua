@@ -2,13 +2,14 @@ describe("claudecode.terminal (wrapper for Snacks.nvim)", function()
   local terminal_wrapper
   local spy
   local mock_snacks_module
-  local mock_snacks_terminal -- Shortcut to mock_snacks_module.terminal
+  local mock_snacks_terminal
   local mock_claudecode_config_module
   local last_created_mock_term_instance
   local create_mock_terminal_instance -- Forward declare
 
   create_mock_terminal_instance = function(cmd, opts)
-    -- Internal deepcopy for the mock's own use, to avoid recursion with spied vim.deepcopy
+    --- Internal deepcopy for the mock's own use.
+    --- Avoids recursion with spied vim.deepcopy.
     local function internal_deepcopy(tbl)
       if type(tbl) ~= "table" then
         return tbl
@@ -53,6 +54,7 @@ describe("claudecode.terminal (wrapper for Snacks.nvim)", function()
         self._is_valid = false
       end),
     }
+    instance.win = instance.winid -- Add the .win field, mirroring winid
     if opts and opts.win and opts.win.on_close then
       instance._on_close_callback = opts.win.on_close
     end
@@ -541,7 +543,7 @@ describe("claudecode.terminal (wrapper for Snacks.nvim)", function()
       assert.is_not_nil(opened_instance)
       assert.is_function(opened_instance._on_close_callback)
 
-      opened_instance._on_close_callback({ winid = opened_instance.winid })
+      opened_instance._on_close_callback({ win = opened_instance.win })
 
       mock_snacks_terminal.open:reset()
       terminal_wrapper.open()

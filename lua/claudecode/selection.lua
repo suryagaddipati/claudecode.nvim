@@ -14,11 +14,11 @@ M.state = {
   latest_selection = nil,
   tracking_enabled = false,
   debounce_timer = nil,
-  debounce_ms = 300, -- Default debounce time in milliseconds
+  debounce_ms = 300,
 
   -- New state for delayed visual demotion
   last_active_visual_selection = nil, -- Stores { bufnr, selection_data, timestamp }
-  demotion_timer = nil, -- Timer object for visual demotion delay
+  demotion_timer = nil,
   visual_demotion_delay_ms = 50, -- Default, will be overridden by config in M.enable
 }
 
@@ -157,7 +157,7 @@ function M.update_selection()
   local current_mode = current_mode_info.mode
   local current_selection -- This will be the candidate for M.state.latest_selection
 
-  if current_mode == "v" or current_mode == "V" or current_mode == "\022" then -- Visual modes
+  if current_mode == "v" or current_mode == "V" or current_mode == "\022" then
     -- If a new visual selection is made, cancel any pending demotion
     if M.state.demotion_timer then
       M.state.demotion_timer:stop()
@@ -180,7 +180,7 @@ function M.update_selection()
         M.state.last_active_visual_selection = nil
       end
     end
-  else -- Not in visual mode
+  else
     local last_visual = M.state.last_active_visual_selection
 
     if M.state.demotion_timer then
@@ -307,12 +307,10 @@ local function validate_visual_mode()
   local current_nvim_mode = vim.api.nvim_get_mode().mode
   local fixed_anchor_pos_raw = vim.fn.getpos("v")
 
-  -- Must be in a visual mode
   if not (current_nvim_mode == "v" or current_nvim_mode == "V" or current_nvim_mode == "\22") then
     return false, "not in visual mode"
   end
 
-  -- The 'v' mark must have a non-zero line number
   if fixed_anchor_pos_raw[2] == 0 then
     return false, "no visual selection mark"
   end
@@ -388,13 +386,10 @@ local function extract_characterwise_text(lines_content, start_coords, end_coord
     end
 
     local text_parts = {}
-    -- First line: from start_coords.col to end of line
     table.insert(text_parts, string.sub(lines_content[1], start_coords.col))
-    -- Middle lines (if any)
     for i = 2, #lines_content - 1 do
       table.insert(text_parts, lines_content[i])
     end
-    -- Last line: from beginning to end_coords.col
     table.insert(text_parts, string.sub(lines_content[#lines_content], 1, end_coords.col))
     return table.concat(text_parts, "\n")
   end
@@ -420,7 +415,6 @@ local function calculate_lsp_positions(start_coords, end_coords, visual_mode, li
       lsp_end_char = 0
     end
   else
-    -- For characterwise/blockwise
     lsp_start_char = start_coords.col - 1
     lsp_end_char = end_coords.col
   end
@@ -435,26 +429,21 @@ end
 -- @return table|nil A table containing selection text, file path, URL, and
 --                   start/end positions, or nil if no visual selection exists.
 function M.get_visual_selection()
-  -- Validate visual mode
   local valid = validate_visual_mode()
   if not valid then
     return nil
   end
 
-  -- Get effective visual mode
   local visual_mode = get_effective_visual_mode()
   if not visual_mode then
     return nil
   end
 
-  -- Get selection coordinates
   local start_coords, end_coords = get_selection_coordinates()
 
-  -- Get buffer information
   local current_buf = vim.api.nvim_get_current_buf()
   local file_path = vim.api.nvim_buf_get_name(current_buf)
 
-  -- Fetch lines content
   local lines_content = vim.api.nvim_buf_get_lines(
     current_buf,
     start_coords.lnum - 1, -- Convert to 0-indexed
@@ -466,7 +455,6 @@ function M.get_visual_selection()
     return nil
   end
 
-  -- Extract text based on visual mode
   local final_text
   if visual_mode == "V" then
     final_text = extract_linewise_text(lines_content, start_coords)
@@ -479,7 +467,6 @@ function M.get_visual_selection()
     return nil
   end
 
-  -- Calculate LSP positions
   local lsp_positions = calculate_lsp_positions(start_coords, end_coords, visual_mode, lines_content)
 
   return {
@@ -584,4 +571,45 @@ function M.send_current_selection()
   vim.api.nvim_echo({ { "Selection sent to Claude", "Normal" } }, false, {})
 end
 
+--- Sends an at_mentioned notification for the current visual selection.
+function M.send_at_mention_for_visual_selection()
+  if not M.state.tracking_enabled or not M.server then
+    vim.api.nvim_err_writeln("Claude Code is not running or server not available.")
+    return
+  end
+
+  local visual_sel = M.get_visual_selection()
+
+  if not visual_sel or visual_sel.selection.isEmpty then
+    vim.api.nvim_err_writeln("No visual selection to send as at-mention.")
+    return
+  end
+
+  -- Pre-calculate line numbers, breaking down access for the linter
+  local current_selection = visual_sel["selection"]
+  local start_pos = current_selection["start"]
+  local end_pos = current_selection["end"]
+  -- Send 0-indexed LSP line numbers directly, assuming the at_mentioned protocol expects this.
+  local start_line_val = start_pos["line"]
+  local end_line_val = end_pos["line"]
+
+  local params = {}
+  params["filePath"] = visual_sel["filePath"]
+  params["lineStart"] = start_line_val
+  params["lineEnd"] = end_line_val
+
+  -- M.server is set in M.enable() and used by M.send_selection_update()
+  -- It refers to the server instance from lua/claudecode/server/init.lua
+  local success = M.server.broadcast("at_mentioned", params)
+
+  if success then
+    vim.api.nvim_echo(
+      { { "At-mention sent to Claude for " .. vim.fn.fnamemodify(params.filePath, ":t"), "Normal" } },
+      false,
+      {}
+    )
+  else
+    vim.api.nvim_err_writeln("Failed to send at-mention.")
+  end
+end
 return M

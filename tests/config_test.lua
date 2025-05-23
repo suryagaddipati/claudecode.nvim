@@ -1,9 +1,8 @@
 -- Simple config module tests that don't rely on the vim API
 
--- Create minimal vim mock
 _G.vim = { ---@type vim_global_api
   deepcopy = function(t)
-    -- Basic deepcopy for testing
+    -- Basic deepcopy implementation for testing purposes
     local copy = {}
     for k, v in pairs(t) do
       if type(v) == "table" then
@@ -29,27 +28,21 @@ _G.vim = { ---@type vim_global_api
   bo = setmetatable({}, { -- Mock for vim.bo and vim.bo[bufnr]
     __index = function(t, k)
       if type(k) == "number" then
-        -- vim.bo[bufnr] accessed, return a new proxy table for this buffer
         if not t[k] then
           t[k] = {} ---@type vim_buffer_options_table
         end
         return t[k]
       end
-      -- vim.bo.option_name (global buffer option)
-      -- Return nil or a default mock value if needed
       return nil
     end,
     __newindex = function(t, k, v)
       if type(k) == "number" then
-        -- vim.bo[bufnr] = val (should not happen for options table itself)
-        -- or vim.bo[bufnr].opt = val
-        -- For simplicity, allow setting on the dynamic buffer table
+        -- For mock simplicity, allows direct setting for vim.bo[bufnr].opt = val or similar assignments.
         if not t[k] then
           t[k] = {}
         end
         rawset(t[k], v) -- Assuming v is the option name if k is bufnr, this is simplified
       else
-        -- vim.bo.option_name = val
         rawset(t, k, v)
       end
     end,
@@ -58,7 +51,7 @@ _G.vim = { ---@type vim_global_api
     get = function()
       return {}
     end,
-    -- Add other vim.diagnostic functions as needed for tests
+    -- Add other vim.diagnostic functions as needed for these tests
   },
   empty_dict = function()
     return {}
@@ -85,12 +78,10 @@ _G.vim = { ---@type vim_global_api
 describe("Config module", function()
   local config
 
-  -- Set up before each test
   setup(function()
-    -- Reset the module
+    -- Reset the module to ensure a clean state for each test
     package.loaded["claudecode.config"] = nil
 
-    -- Load module
     config = require("claudecode.config")
   end)
 
@@ -111,6 +102,7 @@ describe("Config module", function()
       terminal_cmd = "toggleterm",
       log_level = "debug",
       track_selection = false,
+      visual_demotion_delay_ms = 50,
     }
 
     local success, _ = pcall(function()

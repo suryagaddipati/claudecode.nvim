@@ -228,16 +228,20 @@ function M._create_commands()
     desc = "Show Claude Code integration status",
   })
 
-  vim.api.nvim_create_user_command("ClaudeCodeSend", function()
+  vim.api.nvim_create_user_command("ClaudeCodeSend", function(opts)
     if not M.state.server then
       vim.notify("Claude Code integration is not running", vim.log.levels.ERROR)
       return
     end
 
-    local selection = require("claudecode.selection")
-    selection.send_current_selection()
+    -- The selection.send_at_mention_for_visual_selection() function itself
+    -- will check for a valid visual selection and show an error if none exists.
+    -- This simplifies handling calls from keymaps vs. direct :'<,'>Cmd invocations.
+    local selection_module = require("claudecode.selection")
+    selection_module.send_at_mention_for_visual_selection()
   end, {
-    desc = "Send current selection to Claude Code",
+    desc = "Send current visual selection as an at_mention to Claude Code",
+    range = true, -- Important: This makes the command expect a range (visual selection)
   })
 end
 

@@ -103,6 +103,7 @@ The plugin monitors text selections in Neovim:
 - Debounces updates to avoid flooding Claude
 - Formats selection data according to MCP protocol
 - Sends updates to Claude via WebSocket
+- Supports sending `at_mentioned` notifications for visual selections using the `:ClaudeCodeSend` command, providing focused context to Claude.
 
 ### 5. Terminal Integration
 
@@ -166,7 +167,7 @@ The plugin manages the environment for Claude CLI:
    User           ──► Make Selection in Neovim
    Neovim Plugin  ──► Detect Selection Change
                   ──► Format Selection Data
-                  ──► Send Update to Claude
+                  ──► Send Update to Claude (e.g., `selection_changed` or `at_mentioned` via `:ClaudeCodeSend`)
    ```
 
 ## Module Structure

@@ -30,7 +30,7 @@
 ---@class vim_buffer_options_table: table<string, any>
 
 ---@class vim_bo_proxy: vim_buffer_options_table
----@operator index (key: number): vim_buffer_options_table # Allows vim.bo[bufnr]
+---@operator #index(bufnr: number): vim_buffer_options_table Allows vim.bo[bufnr]
 
 ---@class vim_diagnostic_info
 ---@field bufnr number
@@ -50,12 +50,13 @@
 ---@class vim_global_api
 ---@field notify fun(msg: string | string[], level?: number, opts?: vim_notify_opts):nil
 ---@field log vim_log
----@field _last_echo table[]? # table of tables, e.g. { {"message", "HighlightGroup"} }
+---@field _last_echo table[]? table of tables, e.g. { {"message", "HighlightGroup"} }
 ---@field _last_error string?
----@field o vim_options_table # For vim.o.option_name
----@field bo vim_bo_proxy      # For vim.bo.option_name and vim.bo[bufnr].option_name
----@field diagnostic vim_diagnostic_module # For vim.diagnostic.*
----@field empty_dict fun(): table # For vim.empty_dict()
+---@field o vim_options_table For vim.o.option_name
+---@field bo vim_bo_proxy      For vim.bo.option_name and vim.bo[bufnr].option_name
+---@field diagnostic vim_diagnostic_module For vim.diagnostic.*
+---@field empty_dict fun(): table For vim.empty_dict()
+---@field schedule_wrap fun(fn: function): function For vim.schedule_wrap()
 -- Add other vim object definitions here if they cause linting issues
 -- e.g. vim.fn, vim.api, vim.loop, vim.deepcopy, etc.
 
