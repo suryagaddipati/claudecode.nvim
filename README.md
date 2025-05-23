@@ -162,6 +162,11 @@ require("claudecode").setup({
   -- Enable sending selection updates to Claude
   track_selection = true,
 
+  -- Milliseconds to wait before "demoting" a visual selection to a cursor/file selection
+  -- when exiting visual mode. This helps preserve visual context if quickly switching
+  -- to the Claude terminal. (Default: 50)
+  visual_demotion_delay_ms = 50,
+
   -- Configuration for the interactive terminal (passed to claudecode.terminal.setup by the main setup function)
   terminal = {
     -- Side for the vertical split ('left' or 'right')

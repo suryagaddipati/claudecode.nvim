@@ -8,6 +8,7 @@ M.defaults = {
   terminal_cmd = nil,
   log_level = "info",
   track_selection = true,
+  visual_demotion_delay_ms = 50, -- Milliseconds to wait before demoting a visual selection
 }
 
 --- Validates the provided configuration table.
@@ -41,6 +42,11 @@ function M.validate(config)
   assert(is_valid_log_level, "log_level must be one of: " .. table.concat(valid_log_levels, ", "))
 
   assert(type(config.track_selection) == "boolean", "track_selection must be a boolean")
+
+  assert(
+    type(config.visual_demotion_delay_ms) == "number" and config.visual_demotion_delay_ms >= 0,
+    "visual_demotion_delay_ms must be a non-negative number"
+  )
 
   return true
 end

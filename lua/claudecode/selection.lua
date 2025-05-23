@@ -6,12 +6,20 @@
 -- @module claudecode.selection
 local M = {}
 
+local config_module = require("claudecode.config")
+local terminal = require("claudecode.terminal")
+
 -- Selection state
 M.state = {
   latest_selection = nil,
   tracking_enabled = false,
   debounce_timer = nil,
   debounce_ms = 300, -- Default debounce time in milliseconds
+
+  -- New state for delayed visual demotion
+  last_active_visual_selection = nil, -- Stores { bufnr, selection_data, timestamp }
+  demotion_timer = nil, -- Timer object for visual demotion delay
+  visual_demotion_delay_ms = 50, -- Default, will be overridden by config in M.enable
 }
 
 --- Enables selection tracking.
@@ -24,6 +32,11 @@ function M.enable(server)
 
   M.state.tracking_enabled = true
   M.server = server
+
+  -- Get the full configuration to access visual_demotion_delay_ms
+  local user_config = vim.g.claudecode_user_config or {}
+  local full_config = config_module.apply(user_config)
+  M.state.visual_demotion_delay_ms = full_config.visual_demotion_delay_ms
 
   M._create_autocommands()
 end
@@ -124,12 +137,97 @@ function M.update_selection()
     return
   end
 
-  local current_mode = vim.api.nvim_get_mode().mode
+  local current_buf = vim.api.nvim_get_current_buf() -- Get current buffer early
 
-  local current_selection
-  if current_mode == "v" or current_mode == "V" or current_mode == "\022" then
+  -- If the current buffer is the Claude terminal, do not update selection
+  if terminal then
+    local claude_term_bufnr = terminal.get_active_terminal_bufnr()
+    if claude_term_bufnr and current_buf == claude_term_bufnr then
+      -- Cancel any pending demotion if we switch to the Claude terminal
+      if M.state.demotion_timer then
+        M.state.demotion_timer:stop()
+        M.state.demotion_timer:close()
+        M.state.demotion_timer = nil
+      end
+      return
+    end
+  end
+
+  local current_mode_info = vim.api.nvim_get_mode()
+  local current_mode = current_mode_info.mode
+  local current_selection -- This will be the candidate for M.state.latest_selection
+
+  if current_mode == "v" or current_mode == "V" or current_mode == "\022" then -- Visual modes
+    -- If a new visual selection is made, cancel any pending demotion
+    if M.state.demotion_timer then
+      M.state.demotion_timer:stop()
+      M.state.demotion_timer:close()
+      M.state.demotion_timer = nil
+    end
+
     current_selection = M.get_visual_selection()
-  else
+
+    if current_selection then
+      M.state.last_active_visual_selection = {
+        bufnr = current_buf,
+        selection_data = vim.deepcopy(current_selection), -- Store a copy
+        timestamp = vim.loop.now(),
+      }
+    else
+      -- No valid visual selection (e.g., get_visual_selection returned nil)
+      -- Clear last_active_visual if it was for this buffer
+      if M.state.last_active_visual_selection and M.state.last_active_visual_selection.bufnr == current_buf then
+        M.state.last_active_visual_selection = nil
+      end
+    end
+  else -- Not in visual mode
+    local last_visual = M.state.last_active_visual_selection
+
+    if M.state.demotion_timer then
+      -- A demotion is already pending. For this specific update_selection call (e.g. cursor moved),
+      -- current_selection reflects the immediate cursor position.
+      -- M.state.latest_selection (the one that might be sent) is still the visual one until timer resolves.
+      current_selection = M.get_cursor_position()
+    elseif
+      last_visual
+      and last_visual.bufnr == current_buf
+      and last_visual.selection_data
+      and not last_visual.selection_data.selection.isEmpty
+    then
+      -- We just exited visual mode in this buffer, and no demotion timer is running for it.
+      -- Keep M.state.latest_selection as is (it's the visual one from the previous update).
+      -- The 'current_selection' for comparison should also be this visual one.
+      current_selection = M.state.latest_selection -- This should hold the visual selection
+
+      if M.state.demotion_timer then -- Should not happen due to elseif, but as safeguard
+        M.state.demotion_timer:stop()
+        M.state.demotion_timer:close()
+      end
+      M.state.demotion_timer = vim.loop.new_timer()
+      M.state.demotion_timer:start(
+        M.state.visual_demotion_delay_ms,
+        0, -- 0 repeat = one-shot
+        vim.schedule_wrap(function()
+          if M.state.demotion_timer then -- Check if it wasn't cancelled right before firing
+            M.state.demotion_timer:stop() -- Ensure it's stopped
+            M.state.demotion_timer:close()
+            M.state.demotion_timer = nil
+          end
+          M.handle_selection_demotion(current_buf) -- Pass buffer at time of scheduling
+        end)
+      )
+    else
+      -- Genuinely in normal mode, no recent visual exit, no pending demotion.
+      current_selection = M.get_cursor_position()
+      if last_visual and last_visual.bufnr == current_buf then
+        M.state.last_active_visual_selection = nil -- Clear it as it's no longer relevant for demotion
+      end
+    end
+  end
+
+  -- If current_selection could not be determined (e.g. get_visual_selection was nil and no other path set it)
+  -- default to cursor position to avoid errors.
+  if not current_selection then
     current_selection = M.get_cursor_position()
   end
 
@@ -137,10 +235,69 @@ function M.update_selection()
 
   if changed then
     M.state.latest_selection = current_selection
-
     if M.server then
       M.send_selection_update(current_selection)
     end
+  end
+end
+
+--- Handles the demotion of a visual selection after a delay.
+-- Called by the demotion_timer.
+-- @param original_bufnr_when_scheduled number The buffer number that was active when demotion was scheduled.
+function M.handle_selection_demotion(original_bufnr_when_scheduled)
+  -- Timer object is already stopped and cleared by its own callback wrapper or cancellation points.
+  -- M.state.demotion_timer should be nil here if it fired normally or was cancelled.
+
+  local current_buf = vim.api.nvim_get_current_buf()
+  local claude_term_bufnr = terminal.get_active_terminal_bufnr()
+
+  -- Condition 1: Switched to Claude Terminal
+  if claude_term_bufnr and current_buf == claude_term_bufnr then
+    -- Visual selection is preserved (M.state.latest_selection is still the visual one).
+    -- The "pending" status of last_active_visual_selection is resolved.
+    if
+      M.state.last_active_visual_selection
+      and M.state.last_active_visual_selection.bufnr == original_bufnr_when_scheduled
+    then
+      M.state.last_active_visual_selection = nil
+    end
+    return
+  end
+
+  local current_mode_info = vim.api.nvim_get_mode()
+  -- Condition 2: Back in Visual Mode in the Original Buffer
+  if
+    current_buf == original_bufnr_when_scheduled
+    and (current_mode_info.mode == "v" or current_mode_info.mode == "V" or current_mode_info.mode == "\022")
+  then
+    -- A new visual selection will take precedence. M.state.latest_selection will be updated by main flow.
+    if
+      M.state.last_active_visual_selection
+      and M.state.last_active_visual_selection.bufnr == original_bufnr_when_scheduled
+    then
+      M.state.last_active_visual_selection = nil
+    end
+    return
+  end
+
+  -- Condition 3: Still in Original Buffer & Not Visual & Not Claude Term -> Demote
+  if current_buf == original_bufnr_when_scheduled then
+    local new_sel_for_demotion = M.get_cursor_position() -- Demote to current cursor position
+    -- Check if this new cursor position is actually different from the (visual) latest_selection
+    if M.has_selection_changed(new_sel_for_demotion) then
+      M.state.latest_selection = new_sel_for_demotion
+      if M.server then
+        M.send_selection_update(M.state.latest_selection)
+      end
+    end
+  end
+
+  -- Always clear last_active_visual_selection for the original buffer as its pending demotion is resolved.
+  if
+    M.state.last_active_visual_selection
+    and M.state.last_active_visual_selection.bufnr == original_bufnr_when_scheduled
+  then
+    M.state.last_active_visual_selection = nil
   end
 end
 

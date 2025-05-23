@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Testing framework with Busted (55 tests passing)
 - Development environment with Nix flakes
 - Comprehensive luacheck linting with zero warnings
+- **Selection Tracking**: Added a configurable delay (`visual_demotion_delay_ms`) before a visual selection is "demoted" after exiting visual mode. This helps preserve visual context when quickly switching to the Claude terminal.
 
 ### Changed
 

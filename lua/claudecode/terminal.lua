@@ -420,4 +420,21 @@ function M._get_managed_terminal_for_test()
   return managed_snacks_terminal
 end
 
+--- Gets the buffer number of the currently active Claude Code terminal.
+-- This checks both Snacks and native fallback terminals.
+-- @return number|nil The buffer number if an active terminal is found, otherwise nil.
+function M.get_active_terminal_bufnr()
+  if managed_snacks_terminal and managed_snacks_terminal:valid() and managed_snacks_terminal.buf then
+    if vim.api.nvim_buf_is_valid(managed_snacks_terminal.buf) then
+      return managed_snacks_terminal.buf
+    end
+  end
+
+  if is_fallback_terminal_valid() then -- This checks bufnr and winid validity
+    return managed_fallback_terminal_bufnr
+  end
+
+  return nil
+end
+
 return M
