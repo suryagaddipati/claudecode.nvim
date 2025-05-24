@@ -82,7 +82,8 @@ function M.setup(opts)
     opts.terminal = nil -- Remove from main opts to avoid polluting M.state.config
   end
 
-  M.state.config = vim.tbl_deep_extend("force", vim.deepcopy(default_config), opts)
+  local config = require("claudecode.config")
+  M.state.config = config.apply(opts)
   vim.g.claudecode_user_config = vim.deepcopy(M.state.config) -- Make config globally accessible
 
   if terminal_opts then
@@ -93,6 +94,10 @@ function M.setup(opts)
       vim.notify("Failed to load claudecode.terminal module for setup.", vim.log.levels.ERROR)
     end
   end
+
+  -- Setup diff module with configuration
+  local diff = require("claudecode.diff")
+  diff.setup(M.state.config)
 
   -- TODO: Set up logger with configured log level
 

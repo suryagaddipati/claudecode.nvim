@@ -70,14 +70,27 @@ The lock file system enables Claude CLI to discover the Neovim integration:
 }
 ```
 
-### 3. MCP Tool Implementation
+### 3. MCP Tool System
 
-The plugin implements tools that Claude can invoke:
+The plugin implements a dynamic tool system following the Model Context Protocol 2025-03-26 specification. Tools are registered with both handlers and JSON schemas:
 
-- File operations (open, save, check status)
-- Editor information (diagnostics, open editors)
-- Selection management
-- Diff viewing
+**MCP-Exposed Tools:**
+
+- `openFile` - Opens files with optional line/text selection
+- `getCurrentSelection` - Gets current text selection
+- `getOpenEditors` - Lists currently open files
+- `openDiff` - Opens native Neovim diff views for file comparisons
+
+**Internal Tools** (not exposed via MCP):
+
+- `getDiagnostics`, `getWorkspaceFolders`, `saveDocument`, etc.
+
+**Tool Architecture:**
+
+- Centralized registration with `M.register(name, schema, handler)`
+- Dynamic tool list generation via `M.get_tool_list()`
+- Schema validation and JSON-RPC parameter handling
+- Automatic MCP exposure based on schema presence
 
 Each tool follows a request/response pattern:
 
@@ -95,7 +108,62 @@ Claude CLI                            Neovim Plugin
     │                                      │
 ```
 
-### 4. Selection Tracking
+### 4. Diff Integration System
+
+The plugin provides a configurable diff system that Claude can use to show file changes:
+
+**Diff Providers:**
+
+- `native` - Uses Neovim's built-in diff mode with `diffthis`
+- `auto` - Automatically selects the best available provider
+- `diffview` - (Future) Integration with diffview.nvim plugin
+
+**Diff Configuration:**
+
+```lua
+diff_opts = {
+  auto_close_on_accept = true,    -- Auto-close when accepting changes
+  show_diff_stats = true,         -- Show diff statistics
+  vertical_split = true,          -- Use vertical split for diff view
+  open_in_current_tab = true,     -- Open in current tab (reduces clutter)
+}
+```
+
+**Native Diff Features:**
+
+- Current-tab mode (default) - opens diff in current tab to reduce clutter
+- Helpful keymaps in current-tab mode:
+  - `<leader>dq` - Exit diff mode and cleanup
+  - `<leader>da` - Accept all changes
+  - `]c` / `[c` - Navigate between changes (standard Neovim)
+- Automatic temporary file cleanup
+- Configurable split orientation (vertical/horizontal)
+
+**Diff Flow:**
+
+```
+Claude Request ──► openDiff MCP tool ──► diff.lua provider
+                                              │
+                                              ▼
+                                      ┌─────────────────┐
+                                      │ Create temp file│
+                                      │ with new content│
+                                      └─────────────────┘
+                                              │
+                                              ▼
+                                      ┌─────────────────┐
+                                      │ Open original   │
+                                      │ file in editor  │
+                                      └─────────────────┘
+                                              │
+                                              ▼
+                                      ┌─────────────────┐
+                                      │ Create split &  │
+                                      │ enable diffthis │
+                                      └─────────────────┘
+```
+
+### 5. Selection Tracking
 
 The plugin monitors text selections in Neovim:
 
@@ -105,7 +173,7 @@ The plugin monitors text selections in Neovim:
 - Sends updates to Claude via WebSocket
 - Supports sending `at_mentioned` notifications for visual selections using the `:ClaudeCodeSend` command, providing focused context to Claude.
 
-### 5. Terminal Integration
+### 6. Terminal Integration
 
 The plugin provides a dedicated terminal interface for Claude Code CLI:
 
@@ -123,7 +191,7 @@ The plugin provides a dedicated terminal interface for Claude Code CLI:
 └─────────────┘    └─────────────────┘    └─────────────┘
 ```
 
-### 6. Environment Integration
+### 7. Environment Integration
 
 The plugin manages the environment for Claude CLI:
 
@@ -186,7 +254,8 @@ lua/claudecode/
 │   └── mock.lua          # Mock server for testing
 ├── lockfile.lua          # Lock file management
 ├── tools/
-│   └── init.lua          # Tool registration and dispatch
+│   └── init.lua          # MCP tool registration, schema management, and dispatch
+├── diff.lua              # Diff provider system (native Neovim diff support)
 ├── selection.lua         # Selection tracking and notifications
 ├── terminal.lua          # Terminal management (Snacks.nvim or native)
 └── meta/

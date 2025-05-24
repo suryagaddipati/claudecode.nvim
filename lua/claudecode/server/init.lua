@@ -1,6 +1,6 @@
 ---@brief WebSocket server for Claude Code Neovim integration
 local tcp_server = require("claudecode.server.tcp")
-local tools = require("claudecode.tools") -- Added: Require the tools module
+local tools = require("claudecode.tools.init") -- Added: Require the tools module
 
 local M = {}
 
@@ -29,6 +29,9 @@ function M.start(config)
 
   -- Register message handlers first
   M.register_handlers()
+
+  -- Setup tools module
+  tools.setup(M)
 
   -- Create server callbacks
   local callbacks = {
@@ -204,11 +207,10 @@ function M.register_handlers()
       }
     end,
 
-    ["tools/list"] = function(client, params)
-      -- Return list of available tools
-      -- TODO: Implement actual tool discovery
+    ["tools/list"] = function(_client, _params)
+      -- Return list of available tools from the tools module
       return {
-        tools = {}, -- This will be encoded as an empty JSON array
+        tools = tools.get_tool_list(),
       }
     end,
 
@@ -221,9 +223,9 @@ function M.register_handlers()
         return nil, result_or_error_table.error
       elseif result_or_error_table.result then
         -- Tool invocation was successful
-        -- The tools.handle_invoke returns { result = { content = actual_tool_output } }
+        -- The tools.handle_invoke returns { result = actual_tool_output }
         -- We need to return actual_tool_output as the result for the JSON-RPC response
-        return result_or_error_table.result.content, nil
+        return result_or_error_table.result, nil
       else
         -- Should not happen if tools.handle_invoke behaves correctly,
         -- but handle as an internal error.

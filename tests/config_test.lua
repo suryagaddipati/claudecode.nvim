@@ -103,6 +103,13 @@ describe("Config module", function()
       log_level = "debug",
       track_selection = false,
       visual_demotion_delay_ms = 50,
+      diff_provider = "auto",
+      diff_opts = {
+        auto_close_on_accept = true,
+        show_diff_stats = true,
+        vertical_split = true,
+        open_in_current_tab = true,
+      },
     }
 
     local success, _ = pcall(function()

@@ -29,9 +29,59 @@ _G.expect = function(value)
     to_be_table = function()
       assert.is_table(value)
     end,
+    to_be_string = function()
+      assert.is_string(value)
+    end,
+    to_be_function = function()
+      assert.is_function(value)
+    end,
+    to_be_boolean = function()
+      assert.is_boolean(value)
+    end,
+    to_be_at_least = function(expected)
+      assert.is_true(value >= expected)
+    end,
     to_have_key = function(key)
       assert.is_table(value)
       assert.not_nil(value[key])
+    end,
+    to_contain = function(expected)
+      if type(value) == "string" then
+        assert.is_true(string.find(value, expected, 1, true) ~= nil)
+      elseif type(value) == "table" then
+        local found = false
+        for _, v in ipairs(value) do
+          if v == expected then
+            found = true
+            break
+          end
+        end
+        assert.is_true(found)
+      else
+        error("to_contain can only be used with strings or tables")
+      end
+    end,
+    not_to_be_nil = function()
+      assert.is_not_nil(value)
+    end,
+    not_to_contain = function(expected)
+      if type(value) == "string" then
+        assert.is_true(string.find(value, expected, 1, true) == nil)
+      elseif type(value) == "table" then
+        local found = false
+        for _, v in ipairs(value) do
+          if v == expected then
+            found = true
+            break
+          end
+        end
+        assert.is_false(found)
+      else
+        error("not_to_contain can only be used with strings or tables")
+      end
+    end,
+    to_be_truthy = function()
+      assert.is_truthy(value)
     end,
   }
 end

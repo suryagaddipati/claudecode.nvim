@@ -9,11 +9,13 @@ claudecode.nvim/
 ├── .github/workflows/       # CI workflow definitions
 ├── lua/claudecode/          # Plugin implementation
 │   ├── server/              # WebSocket server implementation
-│   ├── tools/               # MCP tool implementations
+│   ├── tools/               # MCP tool implementations and schema management
 │   ├── config.lua           # Configuration management
+│   ├── diff.lua             # Diff provider system (native Neovim support)
 │   ├── init.lua             # Plugin entry point
 │   ├── lockfile.lua         # Lock file management
-│   └── selection.lua        # Selection tracking
+│   ├── selection.lua        # Selection tracking
+│   └── terminal.lua         # Terminal management
 ├── plugin/                  # Plugin loader
 ├── tests/                   # Test suite
 │   ├── unit/                # Unit tests
@@ -27,25 +29,28 @@ claudecode.nvim/
 
 ## Core Components Implementation Status
 
-| Component              | Status     | Priority | Notes                                    |
-| ---------------------- | ---------- | -------- | ---------------------------------------- |
-| Basic plugin structure | ✅ Done    | -        | Initial setup complete                   |
-| Configuration system   | ✅ Done    | -        | Support for user configuration           |
-| WebSocket server       | ✅ Done    | -        | Pure Lua RFC 6455 compliant              |
-| Lock file management   | ✅ Done    | -        | Basic implementation complete            |
-| Selection tracking     | ✅ Done    | -        | Enhanced with multi-mode support         |
-| MCP tools              | 🚧 Started | Medium   | Basic framework, need more tools         |
-| Tests                  | ✅ Done    | -        | 56 tests passing, comprehensive coverage |
-| CI pipeline            | ✅ Done    | -        | GitHub Actions configured                |
-| Documentation          | ✅ Done    | -        | Complete documentation                   |
+| Component              | Status  | Priority | Notes                                                   |
+| ---------------------- | ------- | -------- | ------------------------------------------------------- |
+| Basic plugin structure | ✅ Done | -        | Initial setup complete                                  |
+| Configuration system   | ✅ Done | -        | Support for user configuration                          |
+| WebSocket server       | ✅ Done | -        | Pure Lua RFC 6455 compliant                             |
+| Lock file management   | ✅ Done | -        | Basic implementation complete                           |
+| Selection tracking     | ✅ Done | -        | Enhanced with multi-mode support                        |
+| MCP tools framework    | ✅ Done | -        | Dynamic tool registration and schema system             |
+| Core MCP tools         | ✅ Done | -        | openFile, openDiff, getCurrentSelection, getOpenEditors |
+| Diff integration       | ✅ Done | -        | Native Neovim diff with configurable options            |
+| Terminal integration   | ✅ Done | -        | Snacks.nvim and native terminal support                 |
+| Tests                  | ✅ Done | -        | 55+ tests passing, comprehensive coverage               |
+| CI pipeline            | ✅ Done | -        | GitHub Actions configured                               |
+| Documentation          | ✅ Done | -        | Complete documentation                                  |
 
 ## Development Priorities
 
-1. **MCP Tool Enhancement**
+1. **Advanced MCP Tools**
 
-   - Implement additional tools from the findings document
-   - Add Neovim-specific tools (LSP, diagnostics, Telescope integration)
-   - Enhance existing tool implementations
+   - Add Neovim-specific tools (LSP integration, diagnostics, Telescope integration)
+   - Implement diffview.nvim integration for the diff provider system
+   - Add Git integration tools (branch info, status, etc.)
 
 2. **Performance Optimization**
 
@@ -127,18 +132,35 @@ The WebSocket server is implemented in pure Lua with zero external dependencies:
 - **Security**: Pure Lua SHA-1 implementation for WebSocket handshake
 - **Performance**: Optimized with lookup tables and efficient algorithms
 
-### Custom Tools
+### MCP Tool System
 
-Custom tools beyond the basic VS Code implementation could include:
+The plugin implements a sophisticated tool system following MCP 2025-03-26:
+
+**Current Tools:**
+
+- `openFile` - Opens files with optional line/text selection
+- `openDiff` - Native Neovim diff views with configurable options
+- `getCurrentSelection` - Gets current text selection
+- `getOpenEditors` - Lists currently open files
+
+**Tool Architecture:**
+
+- Dynamic registration: `M.register(name, schema, handler)`
+- Automatic MCP exposure based on schema presence
+- JSON schema validation for parameters
+- Centralized tool definitions in `tools/init.lua`
+
+**Future Tools:**
 
 - Neovim-specific diagnostics
-- LSP integration
+- LSP integration (hover, references, definitions)
 - Telescope integration for file finding
-- Git integration
+- Git integration (status, branch info, blame)
 
 ## Next Steps
 
-1. Enhance MCP tool implementations with Neovim-specific features
-2. Add integration tests with real Claude Code CLI
-3. Optimize performance for large codebases
-4. Create example configurations for popular Neovim setups (LazyVim, NvChad, etc.)
+1. Implement diffview.nvim integration for the diff provider system
+2. Add advanced MCP tools (LSP integration, Telescope, Git)
+3. Add integration tests with real Claude Code CLI
+4. Optimize performance for large codebases
+5. Create example configurations for popular Neovim setups (LazyVim, NvChad, etc.)

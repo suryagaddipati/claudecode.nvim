@@ -33,16 +33,37 @@ The plugin follows a modular architecture with these main components:
    - Creates and manages lock files at `~/.claude/ide/[port].lock`
    - Enables Claude CLI to discover the Neovim integration
 
-3. **Selection Tracking** (`lua/claudecode/selection.lua`)
+3. **MCP Tool System** (`lua/claudecode/tools/init.lua`)
+
+   - Dynamic tool registration with schema validation
+   - Implements openFile, openDiff, getCurrentSelection, getOpenEditors
+   - Follows Model Context Protocol 2025-03-26 specification
+   - Centralized tool definitions and automatic MCP exposure
+
+4. **Diff Integration** (`lua/claudecode/diff.lua`)
+
+   - Native Neovim diff support with configurable options
+   - Current-tab mode (default) to reduce tab clutter
+   - Helpful keymaps: `<leader>dq` (exit), `<leader>da` (accept all)
+   - Automatic temporary file cleanup
+
+5. **Selection Tracking** (`lua/claudecode/selection.lua`)
 
    - Monitors text selections and cursor position in Neovim
    - Sends updates to Claude via WebSocket
 
-4. **Configuration** (`lua/claudecode/config.lua`)
+6. **Terminal Integration** (`lua/claudecode/terminal.lua`)
+
+   - Supports both Snacks.nvim and native Neovim terminals
+   - Vertical split terminal with configurable positioning
+   - Commands: `:ClaudeCode`, `:ClaudeCodeOpen`, `:ClaudeCodeClose`
+
+7. **Configuration** (`lua/claudecode/config.lua`)
 
    - Handles user configuration validation and merging with defaults
+   - Includes diff provider and terminal configuration
 
-5. **Main Plugin Entry** (`lua/claudecode/init.lua`)
+8. **Main Plugin Entry** (`lua/claudecode/init.lua`)
    - Exposes setup and control functions
    - Manages plugin lifecycle
 
@@ -54,8 +75,11 @@ The plugin is in beta stage with:
 - Complete WebSocket server with RFC 6455 compliance
 - Enhanced selection tracking with multi-mode support
 - Lock file management implemented
-- MCP tool framework implemented
-- Comprehensive test suite (55 tests passing)
+- Complete MCP tool framework with dynamic registration
+- Core MCP tools: openFile, openDiff, getCurrentSelection, getOpenEditors
+- Native Neovim diff integration with configurable options
+- Terminal integration (Snacks.nvim and native support)
+- Comprehensive test suite (55+ tests passing)
 
 ## Testing Approach
 
@@ -73,7 +97,7 @@ The project uses the Busted testing framework:
 
 Current priorities for development are:
 
-1. Enhancing MCP tools with additional file operations and editor features
+1. Implementing diffview.nvim integration for the diff provider system
 2. Adding Neovim-specific tools (LSP integration, diagnostics, Telescope)
 3. Performance optimization for large codebases
 4. Integration testing with real Claude Code CLI
@@ -109,10 +133,11 @@ Current priorities for development are:
 
 The plugin provides these user-facing commands:
 
-- `:ClaudeCodeStart` - Start the Claude Code integration
-- `:ClaudeCodeStop` - Stop the integration
-- `:ClaudeCodeStatus` - Show connection status
-- `:ClaudeCodeSend` - Send current selection to Claude
+- `:ClaudeCode` - Toggle the Claude Code interactive terminal
+- `:ClaudeCodeOpen` - Open/focus the Claude Code terminal
+- `:ClaudeCodeClose` - Close the Claude Code terminal
+- `:ClaudeCodeSend` - Send current selection to Claude as at-mentioned context
+- `:ClaudeCodeStatus` - Show connection status (via Lua API)
 
 ## Debugging
 
@@ -135,12 +160,29 @@ require("claudecode").setup({
   auto_start = true,
 
   -- Custom terminal command to use when launching Claude
-  terminal_cmd = nil, -- e.g., "toggleterm"
+  terminal_cmd = nil, -- e.g., "claude --project-foo"
 
   -- Log level (trace, debug, info, warn, error)
   log_level = "info",
 
   -- Enable sending selection updates to Claude
   track_selection = true,
+
+  -- Diff provider configuration for openDiff MCP tool
+  diff_provider = "auto", -- "auto", "native", or "diffview"
+  diff_opts = {
+    auto_close_on_accept = true,    -- Auto-close diff when accepting changes
+    show_diff_stats = true,         -- Show diff statistics
+    vertical_split = true,          -- Use vertical split for diff view
+    open_in_current_tab = true,     -- Open diff in current tab (reduces clutter)
+  },
+
+  -- Terminal configuration
+  terminal = {
+    split_side = "right",           -- "left" or "right"
+    split_width_percentage = 0.30,  -- 0.0 to 1.0
+    provider = "snacks",            -- "snacks" or "native"
+    show_native_term_exit_tip = true, -- Show tip for Ctrl-\\ Ctrl-N
+  },
 }
 ```

@@ -17,7 +17,8 @@ A Neovim plugin that integrates with Claude Code CLI to provide a seamless AI co
 - 📝 Support for file operations and diagnostics
 - 🖥️ Interactive vertical split terminal for Claude sessions (supports `folke/snacks.nvim` or native Neovim terminal)
 - 🔒 Automatic cleanup on exit - server shutdown and lockfile removal
-- 💬 **At-Mentions**: Send visual selections as `at_mentioned` context to Claude using `:'<,'>ClaudeCodeSend`.
+- 💬 **At-Mentions**: Send visual selections as `at_mentioned` context to Claude using `:'<,'>ClaudeCodeSend`
+- 🔀 **Diff View Integration**: Claude can open native Neovim diff views to compare file changes with configurable options
 
 ## Requirements
 
@@ -172,6 +173,15 @@ require("claudecode").setup({
   -- to the Claude terminal. (Default: 50)
   visual_demotion_delay_ms = 50,
 
+  -- Diff provider configuration for openDiff MCP tool
+  diff_provider = "auto", -- "auto", "native", or "diffview" (when implemented)
+  diff_opts = {
+    auto_close_on_accept = true,    -- Auto-close diff when accepting changes
+    show_diff_stats = true,         -- Show diff statistics
+    vertical_split = true,          -- Use vertical split for diff view
+    open_in_current_tab = true,     -- Open diff in current tab instead of new tab (reduces clutter)
+  },
+
   -- Configuration for the interactive terminal (passed to claudecode.terminal.setup by the main setup function)
   terminal = {
     -- Side for the vertical split ('left' or 'right')
@@ -222,7 +232,13 @@ require("claudecode").setup({
    - Open/focus with `:ClaudeCodeOpen` (can also be used from Visual mode to switch focus after selection)
    - Close with `:ClaudeCodeClose`
 
-4. Use Claude as normal - it will have access to your Neovim editor context!
+4. Use Claude as normal - it will have access to your Neovim editor context! Claude can:
+   - Open files in your editor
+   - View your current selection and open editors
+   - Open diff views to show proposed changes with handy keymaps:
+     - `]c` / `[c` to navigate between changes
+     - `<leader>dq` to exit diff mode (current tab mode only)
+     - `<leader>da` to accept all changes (current tab mode only)
 
 ## Commands
 
@@ -259,7 +275,12 @@ The plugin follows a modular architecture with these main components:
 1. **WebSocket Server** - Handles communication with Claude Code CLI using JSON-RPC 2.0 protocol
 2. **Lock File System** - Creates and manages lock files that Claude CLI uses to detect the editor integration
 3. **Selection Tracking** - Monitors text selections and cursor position in Neovim
-4. **Tool Implementations** - Implements commands that Claude can execute in the editor
+4. **MCP Tool System** - Implements Model Context Protocol tools that Claude can execute:
+   - `openFile` - Opens files with optional line/text selection
+   - `getCurrentSelection` - Gets current text selection
+   - `getOpenEditors` - Lists currently open files
+   - `openDiff` - Opens native Neovim diff views for file comparisons
+5. **Diff Integration** - Native Neovim diff support with configurable behavior
 
 For more details, see [ARCHITECTURE.md](./ARCHITECTURE.md).
 
