@@ -3,109 +3,42 @@ require("tests.busted_setup")
 
 describe("Diff Module", function()
   local diff
-  local mock_vim
+
+  local original_vim_functions = {}
 
   local function setup()
-    -- Clear module cache
     package.loaded["claudecode.diff"] = nil
     package.loaded["claudecode.config"] = nil
 
-    -- Mock vim API
-    mock_vim = {
-      fn = {
-        tempname = function()
-          return "/tmp/test_temp"
-        end,
-        mkdir = function()
-          return true
-        end,
-        fnamemodify = function(path, modifier)
-          if modifier == ":t" then
-            return path:match("([^/]+)$") or path
-          elseif modifier == ":h" then
-            return path:match("^(.+)/[^/]+$") or ""
-          end
-          return path
-        end,
-        fnameescape = function(path)
-          return path
-        end,
-        filereadable = function()
-          return 1
-        end,
-        delete = function()
-          return 0
-        end,
-        execute = function()
-          return ""
-        end,
-      },
-      cmd = function() end,
-      api = {
-        nvim_get_current_buf = function()
-          return 1
-        end,
-        nvim_buf_set_name = function() end,
-        nvim_set_option_value = function() end,
-        nvim_create_augroup = function()
-          return 1
-        end,
-        nvim_create_autocmd = function() end,
-      },
-      defer_fn = function(fn)
-        fn()
-      end,
-      notify = function() end,
-      log = { levels = { INFO = 2 } },
-      deepcopy = function(t)
-        local function copy(obj)
-          if type(obj) ~= "table" then
-            return obj
-          end
-          local result = {}
-          for k, v in pairs(obj) do
-            result[k] = copy(v)
-          end
-          return result
-        end
-        return copy(t)
-      end,
-      tbl_deep_extend = function(behavior, t1, t2)
-        local function deep_extend(dest, src)
-          for k, v in pairs(src) do
-            if type(v) == "table" and type(dest[k]) == "table" then
-              deep_extend(dest[k], v)
-            else
-              dest[k] = v
-            end
-          end
-        end
+    assert(_G.vim, "Global vim mock not initialized by busted_setup.lua")
+    assert(_G.vim.fn, "Global vim.fn mock not initialized")
 
-        local result = {}
-        for k, v in pairs(t1) do
-          if type(v) == "table" then
-            result[k] = {}
-            for k2, v2 in pairs(v) do
-              result[k][k2] = v2
-            end
-          else
-            result[k] = v
-          end
-        end
-
-        deep_extend(result, t2)
-        return result
-      end,
-    }
-
-    -- Replace vim with mock
-    _G.vim = mock_vim
+    -- For this spec, the global mock (which now includes stdpath) should be largely sufficient.
+    -- The local mock_vim that was missing stdpath is removed.
 
     diff = require("claudecode.diff")
   end
 
   local function teardown()
-    _G.vim = nil
+    for path, func in pairs(original_vim_functions) do
+      local parts = {}
+      for part in string.gmatch(path, "[^%.]+") do
+        table.insert(parts, part)
+      end
+      local obj = _G.vim
+      for i = 1, #parts - 1 do
+        obj = obj[parts[i]]
+      end
+      obj[parts[#parts]] = func
+    end
+    original_vim_functions = {}
+
+    if original_vim_functions["cmd"] then
+      _G.vim.cmd = original_vim_functions["cmd"]
+      original_vim_functions["cmd"] = nil
+    end
+
+    -- _G.vim itself is managed by busted_setup.lua
   end
 
   before_each(function()
@@ -118,7 +51,6 @@ describe("Diff Module", function()
 
   describe("Provider Detection", function()
     it("should detect when diffview.nvim is not available", function()
-      -- Mock require to fail for diffview
       local old_require = require
       _G.require = function(name)
         if name == "diffview" then
@@ -134,11 +66,10 @@ describe("Diff Module", function()
     end)
 
     it("should detect when diffview.nvim is available", function()
-      -- Mock require to succeed for diffview
       local old_require = require
       _G.require = function(name)
         if name == "diffview" then
-          return {} -- Mock diffview module
+          return {}
         end
         return old_require(name)
       end
@@ -154,7 +85,6 @@ describe("Diff Module", function()
     it("should return native when diffview is not available and provider is auto", function()
       diff.setup({ diff_provider = "auto" })
 
-      -- Mock diffview as unavailable
       local old_require = require
       _G.require = function(name)
         if name == "diffview" then
@@ -172,11 +102,10 @@ describe("Diff Module", function()
     it("should return diffview when available and provider is auto", function()
       diff.setup({ diff_provider = "auto" })
 
-      -- Mock diffview as available
       local old_require = require
       _G.require = function(name)
         if name == "diffview" then
-          return {} -- Mock diffview module
+          return {}
         end
         return old_require(name)
       end
@@ -197,7 +126,6 @@ describe("Diff Module", function()
     it("should fallback to native when diffview provider is set but not available", function()
       diff.setup({ diff_provider = "diffview" })
 
-      -- Mock diffview as unavailable
       local old_require = require
       _G.require = function(name)
         if name == "diffview" then
@@ -218,7 +146,6 @@ describe("Diff Module", function()
       local test_content = "This is test content\nLine 2\nLine 3"
       local test_filename = "test.lua"
 
-      -- Mock io.open
       local mock_file = {
         write = function() end,
         close = function() end,
@@ -233,7 +160,6 @@ describe("Diff Module", function()
       expect(tmp_file).to_be_string()
       expect(err).to_be_nil()
 
-      -- Check string contains
       local tmp_file_str = tostring(tmp_file)
       expect(tmp_file_str:find("claudecode_diff", 1, true)).not_to_be_nil()
       expect(tmp_file_str:find(test_filename, 1, true)).not_to_be_nil()
@@ -245,7 +171,6 @@ describe("Diff Module", function()
       local test_content = "test"
       local test_filename = "test.lua"
 
-      -- Mock io.open to fail
       local old_io_open = io.open
       rawset(io, "open", function()
         return nil
@@ -272,13 +197,14 @@ describe("Diff Module", function()
         },
       })
 
-      -- Track vim commands
       local commands = {}
-      mock_vim.cmd = function(cmd)
+      if _G.vim and rawget(original_vim_functions, "cmd") == nil then
+        original_vim_functions["cmd"] = _G.vim.cmd
+      end
+      _G.vim.cmd = function(cmd)
         table.insert(commands, cmd)
       end
 
-      -- Mock io.open
       local mock_file = {
         write = function() end,
         close = function() end,
@@ -294,7 +220,6 @@ describe("Diff Module", function()
       expect(result.provider).to_be("native")
       expect(result.tab_name).to_be("Test Diff")
 
-      -- Verify commands were called
       local found_tabnew = false
       local found_diffthis = false
       local found_vertical_split = false
@@ -328,13 +253,14 @@ describe("Diff Module", function()
         },
       })
 
-      -- Track vim commands
       local commands = {}
-      mock_vim.cmd = function(cmd)
+      if _G.vim and rawget(original_vim_functions, "cmd") == nil then
+        original_vim_functions["cmd"] = _G.vim.cmd
+      end
+      _G.vim.cmd = function(cmd)
         table.insert(commands, cmd)
       end
 
-      -- Mock io.open
       local mock_file = {
         write = function() end,
         close = function() end,
@@ -368,7 +294,6 @@ describe("Diff Module", function()
     it("should handle temporary file creation errors", function()
       diff.setup({ diff_provider = "native" })
 
-      -- Mock io.open to fail
       local old_io_open = io.open
       rawset(io, "open", function()
         return nil
@@ -388,7 +313,6 @@ describe("Diff Module", function()
     it("should use native provider when configured", function()
       diff.setup({ diff_provider = "native" })
 
-      -- Mock the native diff function
       local native_called = false
       diff._open_native_diff = function(old_path, new_path, content, tab_name)
         native_called = true
@@ -409,16 +333,14 @@ describe("Diff Module", function()
     it("should use diffview provider when available and configured", function()
       diff.setup({ diff_provider = "diffview" })
 
-      -- Mock diffview as available
       local old_require = require
       _G.require = function(name)
         if name == "diffview" then
-          return {} -- Mock diffview module
+          return {}
         end
         return old_require(name)
       end
 
-      -- Mock the diffview diff function
       local diffview_called = false
       diff._open_diffview_diff = function(old_path, new_path, content, tab_name)
         diffview_called = true

@@ -4,7 +4,8 @@ require("tests.busted_setup")
 describe("MCP Tools Integration", function()
   local server
   local tools
-  local mock_vim
+
+  local original_vim_functions = {} -- To store original functions if we override them
 
   local function setup()
     -- Clear module cache
@@ -24,116 +25,33 @@ describe("MCP Tools Integration", function()
       end,
     }
 
-    -- Mock vim API extensively for integration tests
-    mock_vim = {
-      fn = {
-        tempname = function()
-          return "/tmp/test_temp"
-        end,
-        mkdir = function()
-          return true
-        end,
-        fnamemodify = function(path, modifier)
-          if modifier == ":t" then
-            return path:match("([^/]+)$") or path
-          elseif modifier == ":h" then
-            return path:match("^(.+)/[^/]+$") or ""
-          end
-          return path
-        end,
-        fnameescape = function(path)
-          return path
-        end,
-        filereadable = function()
-          return 1
-        end,
-        delete = function()
-          return 0
-        end,
-        execute = function()
-          return ""
-        end,
-        expand = function(path)
-          return path
-        end,
-        bufnr = function()
-          return 1
-        end,
-        buflisted = function()
-          return 1
-        end,
-        getcwd = function()
-          return "/test/workspace"
-        end,
-      },
-      cmd = function() end,
-      api = {
-        nvim_get_current_buf = function()
-          return 1
-        end,
-        nvim_buf_set_name = function() end,
-        nvim_set_option_value = function() end,
-        nvim_create_augroup = function()
-          return 1
-        end,
-        nvim_create_autocmd = function() end,
-        nvim_list_bufs = function()
-          return { 1, 2 }
-        end,
-        nvim_buf_is_loaded = function()
-          return true
-        end,
-        nvim_buf_get_name = function(bufnr)
-          if bufnr == 1 then
-            return "/test/file1.lua"
-          end
-          if bufnr == 2 then
-            return "/test/file2.lua"
-          end
-          return ""
-        end,
-        nvim_buf_get_option = function()
-          return false
-        end,
-        nvim_buf_call = function(bufnr, fn)
-          fn()
-        end,
-        nvim_buf_delete = function() end,
-      },
-      defer_fn = function(fn)
-        fn()
-      end,
-      notify = function() end,
-      log = { levels = { INFO = 2, WARN = 3 } },
-      lsp = {},
-      diagnostic = {
-        get = function()
-          return {}
-        end,
-      },
-      json = {
-        encode = function(data)
-          return vim.inspect(data)
-        end,
-        decode = function(str)
-          return {}
-        end,
-      },
-      empty_dict = function()
-        return {}
-      end,
-    }
+    -- Ensure _G.vim is initialized by busted_setup
+    assert(_G.vim, "Global vim mock not initialized by busted_setup.lua")
+    assert(_G.vim.fn, "Global vim.fn mock not initialized")
+    assert(_G.vim.api, "Global vim.api mock not initialized")
 
-    -- Replace vim with mock
-    _G.vim = mock_vim
-
-    -- Load modules
+    -- Store original functions that this test might override and apply specific mocks
+    -- Load modules (these will now use the _G.vim provided by busted_setup)
     server = require("claudecode.server.init")
     tools = require("claudecode.tools.init")
   end
 
   local function teardown()
-    _G.vim = nil
+    -- Restore any original vim functions that were overridden in setup()
+    for path, func in pairs(original_vim_functions) do
+      local parts = {}
+      for part in string.gmatch(path, "[^%.]+") do
+        table.insert(parts, part)
+      end
+      local obj = _G.vim
+      for i = 1, #parts - 1 do
+        obj = obj[parts[i]]
+      end
+      obj[parts[#parts]] = func
+    end
+    original_vim_functions = {}
+    -- _G.vim itself is managed by busted_setup.lua; no need to nil it here
+    -- unless busted_setup doesn't restore it between spec files.
   end
 
   setup()
@@ -151,7 +69,6 @@ describe("MCP Tools Integration", function()
       expect(result.tools).to_be_table()
       expect(#result.tools).to_be_at_least(4)
 
-      -- Check openDiff tool specifically
       local openDiff_tool = nil
       for _, tool in ipairs(result.tools) do
         if tool.name == "openDiff" then
@@ -168,7 +85,6 @@ describe("MCP Tools Integration", function()
       expect(openDiff_tool.inputSchema.required).to_be_table()
       expect(#openDiff_tool.inputSchema.required).to_be(4)
 
-      -- Verify required parameters
       local required = openDiff_tool.inputSchema.required
       local has_old_file_path = false
       local has_new_file_path = false
@@ -195,7 +111,6 @@ describe("MCP Tools Integration", function()
       expect(has_new_file_contents).to_be_true()
       expect(has_tab_name).to_be_true()
 
-      -- Verify properties
       local props = openDiff_tool.inputSchema.properties
       expect(props.old_file_path.type).to_be("string")
       expect(props.new_file_path.type).to_be("string")
@@ -244,11 +159,10 @@ describe("MCP Tools Integration", function()
 
   describe("Tools Call Handler", function()
     before_each(function()
-      -- Use a simpler approach: mock the tools module entirely
+      -- Mock the tools module to isolate handler logic.
       tools = {
         handle_invoke = function(client, params)
           if params.name == "openDiff" then
-            -- Check for missing required parameters
             local required_params = { "old_file_path", "new_file_path", "new_file_contents", "tab_name" }
             for _, param in ipairs(required_params) do
               if not params.arguments[param] then
@@ -282,7 +196,7 @@ describe("MCP Tools Integration", function()
                 content = {
                   {
                     type = "text",
-                    text = "[]", -- Empty JSON array
+                    text = "[]",
                   },
                 },
               },
@@ -322,8 +236,7 @@ describe("MCP Tools Integration", function()
 
       server.register_handlers()
 
-      -- Replace the tools reference in the server module to use our mock
-      -- This requires directly patching the server's handlers
+      -- Patch server's "tools/call" handler to use the mocked tools.handle_invoke.
       server.state.handlers["tools/call"] = function(client, params)
         local result_or_error_table = tools.handle_invoke(client, params)
         if result_or_error_table.error then
@@ -385,7 +298,6 @@ describe("MCP Tools Integration", function()
         name = "openDiff",
         arguments = {
           old_file_path = "/test/old.lua",
-          -- Missing other required parameters
         },
       }
 
@@ -414,8 +326,7 @@ describe("MCP Tools Integration", function()
       expect(error_data).to_be_nil()
       expect(result.content).to_be_table()
       expect(result.content[1].type).to_be("text")
-      expect(result.content[1].text).to_be_string()
-      -- The JSON is now encoded as text, so we just check it's a string
+      expect(result.content[1].text).to_be_string() -- The JSON is encoded as text.
     end)
 
     it("should handle openFile tool call", function()
@@ -541,7 +452,11 @@ describe("MCP Tools Integration", function()
 
       -- Track vim commands
       local vim_commands = {}
-      mock_vim.cmd = function(cmd)
+      -- Save original _G.vim.cmd if it hasn't been backed up yet in original_vim_functions
+      if _G.vim and rawget(original_vim_functions, "cmd") == nil then
+        original_vim_functions["cmd"] = _G.vim.cmd -- Save current value (can be nil or function)
+      end
+      _G.vim.cmd = function(cmd)
         table.insert(vim_commands, cmd)
       end
 
@@ -561,7 +476,6 @@ describe("MCP Tools Integration", function()
         end,
         handle_invoke = function(client, params)
           if params.name == "openDiff" then
-            -- Check for missing required parameters
             local required_params = { "old_file_path", "new_file_path", "new_file_contents", "tab_name" }
             for _, param in ipairs(required_params) do
               if not params.arguments[param] then
@@ -625,13 +539,11 @@ describe("MCP Tools Integration", function()
         end
       end
 
-      -- Step 1: List tools
       local list_handler = server.state.handlers["tools/list"]
       local tools_list = list_handler(nil, {})
 
       expect(tools_list.tools).to_be_table()
 
-      -- Step 2: Call openDiff tool
       local call_handler = server.state.handlers["tools/call"]
       local call_params = {
         name = "openDiff",
@@ -645,7 +557,6 @@ describe("MCP Tools Integration", function()
 
       local call_result, call_error = call_handler(nil, call_params)
 
-      -- Verify result
       expect(call_result).to_be_table()
       expect(call_error).to_be_nil()
       expect(call_result.content).to_be_table()
@@ -659,6 +570,19 @@ describe("MCP Tools Integration", function()
       -- The actual diff functionality is tested in unit tests
 
       rawset(io, "open", old_io_open)
+
+      -- Restore _G.vim.cmd to the state it was in before this test modified it.
+      -- The original value (or nil) was stored in original_vim_functions["cmd"]
+      -- by this test's setup logic (around line 472).
+      if _G.vim and rawget(original_vim_functions, "cmd") ~= nil then
+        -- Check if "cmd" key exists in original_vim_functions.
+        -- This implies it was set by this test or a misbehaving prior one.
+        _G.vim.cmd = original_vim_functions["cmd"]
+        -- Nil out this entry to signify this specific override has been reverted,
+        -- preventing the main file teardown (if it runs) from acting on it again
+        -- or a subsequent test from being confused by this stale backup.
+        original_vim_functions["cmd"] = nil
+      end
     end)
 
     it("should handle parameter validation across the protocol", function()
@@ -724,7 +648,6 @@ describe("MCP Tools Integration", function()
 
       local call_handler = server.state.handlers["tools/call"]
 
-      -- Test each missing parameter
       local required_params = { "old_file_path", "new_file_path", "new_file_contents", "tab_name" }
 
       for _, missing_param in ipairs(required_params) do

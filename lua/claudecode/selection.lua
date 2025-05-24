@@ -6,10 +6,9 @@
 -- @module claudecode.selection
 local M = {}
 
-local config_module = require("claudecode.config")
+local logger = require("claudecode.logger")
 local terminal = require("claudecode.terminal")
 
--- Selection state
 M.state = {
   latest_selection = nil,
   tracking_enabled = false,
@@ -25,18 +24,15 @@ M.state = {
 --- Enables selection tracking.
 -- Sets up autocommands to monitor cursor movements, mode changes, and text changes.
 -- @param server table The server object to use for communication.
-function M.enable(server)
+-- @param visual_demotion_delay_ms number The delay for visual selection demotion.
+function M.enable(server, visual_demotion_delay_ms)
   if M.state.tracking_enabled then
     return
   end
 
   M.state.tracking_enabled = true
   M.server = server
-
-  -- Get the full configuration to access visual_demotion_delay_ms
-  local user_config = vim.g.claudecode_user_config or {}
-  local full_config = config_module.apply(user_config)
-  M.state.visual_demotion_delay_ms = full_config.visual_demotion_delay_ms
+  M.state.visual_demotion_delay_ms = visual_demotion_delay_ms
 
   M._create_autocommands()
 end
@@ -98,14 +94,12 @@ end
 --- Handles cursor movement events.
 -- Triggers a debounced update of the selection.
 function M.on_cursor_moved()
-  -- Debounce the update to avoid sending too many updates
   M.debounce_update()
 end
 
 --- Handles mode change events.
 -- Triggers an immediate update of the selection.
 function M.on_mode_changed()
-  -- Update selection immediately on mode change
   M.update_selection()
 end
 
@@ -137,7 +131,7 @@ function M.update_selection()
     return
   end
 
-  local current_buf = vim.api.nvim_get_current_buf() -- Get current buffer early
+  local current_buf = vim.api.nvim_get_current_buf()
 
   -- If the current buffer is the Claude terminal, do not update selection
   if terminal then
@@ -155,7 +149,7 @@ function M.update_selection()
 
   local current_mode_info = vim.api.nvim_get_mode()
   local current_mode = current_mode_info.mode
-  local current_selection -- This will be the candidate for M.state.latest_selection
+  local current_selection
 
   if current_mode == "v" or current_mode == "V" or current_mode == "\022" then
     -- If a new visual selection is made, cancel any pending demotion
@@ -197,7 +191,7 @@ function M.update_selection()
       -- We just exited visual mode in this buffer, and no demotion timer is running for it.
       -- Keep M.state.latest_selection as is (it's the visual one from the previous update).
       -- The 'current_selection' for comparison should also be this visual one.
-      current_selection = M.state.latest_selection -- This should hold the visual selection
+      current_selection = M.state.latest_selection
 
       if M.state.demotion_timer then -- Should not happen due to elseif, but as safeguard
         M.state.demotion_timer:stop()
@@ -209,7 +203,7 @@ function M.update_selection()
         0, -- 0 repeat = one-shot
         vim.schedule_wrap(function()
           if M.state.demotion_timer then -- Check if it wasn't cancelled right before firing
-            M.state.demotion_timer:stop() -- Ensure it's stopped
+            M.state.demotion_timer:stop()
             M.state.demotion_timer:close()
             M.state.demotion_timer = nil
           end
@@ -282,7 +276,7 @@ function M.handle_selection_demotion(original_bufnr_when_scheduled)
 
   -- Condition 3: Still in Original Buffer & Not Visual & Not Claude Term -> Demote
   if current_buf == original_bufnr_when_scheduled then
-    local new_sel_for_demotion = M.get_cursor_position() -- Demote to current cursor position
+    local new_sel_for_demotion = M.get_cursor_position()
     -- Check if this new cursor position is actually different from the (visual) latest_selection
     if M.has_selection_changed(new_sel_for_demotion) then
       M.state.latest_selection = new_sel_for_demotion
@@ -374,13 +368,11 @@ end
 -- @return string|nil - the extracted text or nil if invalid
 local function extract_characterwise_text(lines_content, start_coords, end_coords)
   if start_coords.lnum == end_coords.lnum then
-    -- Single line selection
     if not lines_content[1] then
       return nil
     end
     return string.sub(lines_content[1], start_coords.col, end_coords.col)
   else
-    -- Multi-line selection
     if not lines_content[1] or not lines_content[#lines_content] then
       return nil
     end
@@ -508,7 +500,6 @@ function M.has_selection_changed(new_selection)
   local old_selection = M.state.latest_selection
 
   if not new_selection then
-    -- If old selection was also nil, no change. Otherwise (old selection existed), it's a change.
     return old_selection ~= nil
   end
 
@@ -553,7 +544,7 @@ end
 -- update and sends the latest selection.
 function M.send_current_selection()
   if not M.state.tracking_enabled or not M.server then
-    vim.api.nvim_err_writeln("Claude Code is not running")
+    logger.error("selection", "Claude Code is not running")
     return
   end
 
@@ -562,7 +553,7 @@ function M.send_current_selection()
   local selection = M.state.latest_selection
 
   if not selection then
-    vim.api.nvim_err_writeln("No selection available")
+    logger.error("selection", "No selection available")
     return
   end
 
@@ -574,36 +565,52 @@ end
 --- Sends an at_mentioned notification for the current visual selection.
 function M.send_at_mention_for_visual_selection()
   if not M.state.tracking_enabled or not M.server then
-    vim.api.nvim_err_writeln("Claude Code is not running or server not available.")
-    return
+    logger.error("selection", "Claude Code is not running or server not available for send_at_mention.")
+    return false
   end
 
-  local visual_sel = M.get_visual_selection()
+  local sel_to_send = M.state.latest_selection
 
-  if not visual_sel or visual_sel.selection.isEmpty then
-    vim.api.nvim_err_writeln("No visual selection to send as at-mention.")
-    return
+  if not sel_to_send or sel_to_send.selection.isEmpty then
+    -- Fallback: try to get current visual selection directly.
+    -- This helps if latest_selection was demoted or command was too fast.
+    local current_visual = M.get_visual_selection()
+    if current_visual and not current_visual.selection.isEmpty then
+      sel_to_send = current_visual
+    else
+      logger.warn("selection", "No visual selection to send as at-mention.")
+      return false
+    end
   end
 
-  -- Pre-calculate line numbers, breaking down access for the linter
-  local current_selection = visual_sel["selection"]
-  local start_pos = current_selection["start"]
-  local end_pos = current_selection["end"]
-  -- Send 0-indexed LSP line numbers directly, assuming the at_mentioned protocol expects this.
-  local start_line_val = start_pos["line"]
-  local end_line_val = end_pos["line"]
+  -- Sanity check: ensure the selection is for the current buffer
+  local current_buf_name = vim.api.nvim_buf_get_name(vim.api.nvim_get_current_buf())
+  if sel_to_send.filePath ~= current_buf_name then
+    vim.notify(
+      "Tracked selection is for '"
+        .. sel_to_send.filePath
+        .. "', but current buffer is '"
+        .. current_buf_name
+        .. "'. Not sending.",
+      vim.log.levels.WARN,
+      { title = "ClaudeCode Warning" }
+    )
+    return false
+  end
 
   local params = {}
-  params["filePath"] = visual_sel["filePath"]
-  params["lineStart"] = start_line_val
-  params["lineEnd"] = end_line_val
+  params["filePath"] = sel_to_send.filePath
+  params["lineStart"] = sel_to_send.selection.start.line -- Assuming 0-indexed from selection module
+  params["lineEnd"] = sel_to_send.selection["end"].line -- Assuming 0-indexed
 
-  -- M.server is set in M.enable() and used by M.send_selection_update()
-  -- It refers to the server instance from lua/claudecode/server/init.lua
-  local success = M.server.broadcast("at_mentioned", params)
+  local broadcast_success = M.server.broadcast("at_mentioned", params)
 
-  if not success then
-    vim.api.nvim_err_writeln("Failed to send at-mention.")
+  if not broadcast_success then
+    logger.error("selection", "Failed to send at-mention.")
+    return false
+  else
+    logger.debug("selection", "Visual selection sent as at-mention.")
+    return true
   end
 end
 return M

@@ -5,7 +5,7 @@ describe("claudecode.terminal (wrapper for Snacks.nvim)", function()
   local mock_snacks_terminal
   local mock_claudecode_config_module
   local last_created_mock_term_instance
-  local create_mock_terminal_instance -- Forward declare
+  local create_mock_terminal_instance
 
   create_mock_terminal_instance = function(cmd, opts)
     --- Internal deepcopy for the mock's own use.
@@ -54,7 +54,7 @@ describe("claudecode.terminal (wrapper for Snacks.nvim)", function()
         self._is_valid = false
       end),
     }
-    instance.win = instance.winid -- Add the .win field, mirroring winid
+    instance.win = instance.winid
     if opts and opts.win and opts.win.on_close then
       instance._on_close_callback = opts.win.on_close
     end
@@ -65,7 +65,6 @@ describe("claudecode.terminal (wrapper for Snacks.nvim)", function()
   before_each(function()
     _G.vim = require("tests.mocks.vim")
 
-    -- Custom spy implementation (derived from a previous conditional block)
     local spy_instance_methods = {}
     local spy_instance_mt = { __index = spy_instance_methods }
 
@@ -358,7 +357,10 @@ describe("claudecode.terminal (wrapper for Snacks.nvim)", function()
       local opts_arg = mock_snacks_terminal.open:get_call(1).refs[2]
       assert.are.equal("right", opts_arg.win.position)
       assert.are.equal(0.30, opts_arg.win.width)
-      vim.notify:was_called_with("claudecode.terminal.setup expects a table", vim.log.levels.WARN)
+      vim.notify:was_called_with(
+        "claudecode.terminal.setup expects a table or nil for user_term_config",
+        vim.log.levels.WARN
+      )
     end)
   end)
 
@@ -399,7 +401,7 @@ describe("claudecode.terminal (wrapper for Snacks.nvim)", function()
       package.loaded["claudecode.config"] = mock_claudecode_config_module
       package.loaded["claudecode.terminal"] = nil
       terminal_wrapper = require("claudecode.terminal")
-      terminal_wrapper.setup({})
+      terminal_wrapper.setup({}, "my_claude_cli")
 
       terminal_wrapper.open()
       mock_snacks_terminal.open:was_called(1)
@@ -498,7 +500,7 @@ describe("claudecode.terminal (wrapper for Snacks.nvim)", function()
       package.loaded["claudecode.config"] = mock_claudecode_config_module
       package.loaded["claudecode.terminal"] = nil
       terminal_wrapper = require("claudecode.terminal")
-      terminal_wrapper.setup({ split_side = "left", split_width_percentage = 0.4 })
+      terminal_wrapper.setup({ split_side = "left", split_width_percentage = 0.4 }, "toggle_claude")
 
       terminal_wrapper.toggle({ split_width_percentage = 0.45 })
 

@@ -1,6 +1,10 @@
 ---@brief WebSocket server for Claude Code Neovim integration
+local claudecode_main = require("claudecode") -- Added for version access
+local logger = require("claudecode.logger")
 local tcp_server = require("claudecode.server.tcp")
 local tools = require("claudecode.tools.init") -- Added: Require the tools module
+
+local MCP_PROTOCOL_VERSION = "2024-11-05"
 
 local M = {}
 
@@ -27,30 +31,35 @@ function M.start(config)
     return false, "Server already running"
   end
 
-  -- Register message handlers first
   M.register_handlers()
 
-  -- Setup tools module
   tools.setup(M)
 
-  -- Create server callbacks
   local callbacks = {
     on_message = function(client, message)
       M._handle_message(client, message)
     end,
     on_connect = function(client)
       M.state.clients[client.id] = client
+      logger.debug("server", "WebSocket client connected:", client.id)
     end,
     on_disconnect = function(client, code, reason)
       M.state.clients[client.id] = nil
-      print("WebSocket client disconnected: " .. client.id .. " (code: " .. code .. ", reason: " .. (reason or ""))
+      logger.debug(
+        "server",
+        "WebSocket client disconnected:",
+        client.id,
+        "(code:",
+        code,
+        ", reason:",
+        (reason or "N/A") .. ")"
+      )
     end,
     on_error = function(error_msg)
-      print("WebSocket server error: " .. error_msg)
+      logger.error("server", "WebSocket server error:", error_msg)
     end,
   }
 
-  -- Create and start TCP server
   local server, error_msg = tcp_server.create_server(config, callbacks)
   if not server then
     return false, error_msg or "Unknown server creation error"
@@ -59,8 +68,7 @@ function M.start(config)
   M.state.server = server
   M.state.port = server.port
 
-  -- Start ping timer to keep connections alive
-  M.state.ping_timer = tcp_server.start_ping_timer(server, 30000)
+  M.state.ping_timer = tcp_server.start_ping_timer(server, 30000) -- Start ping timer to keep connections alive
 
   return true, server.port
 end
@@ -73,14 +81,12 @@ function M.stop()
     return false, "Server not running"
   end
 
-  -- Stop ping timer
   if M.state.ping_timer then
     M.state.ping_timer:stop()
     M.state.ping_timer:close()
     M.state.ping_timer = nil
   end
 
-  -- Stop TCP server
   tcp_server.stop_server(M.state.server)
 
   M.state.server = nil
@@ -94,7 +100,6 @@ end
 ---@param client table The client that sent the message
 ---@param message string The JSON-RPC message
 function M._handle_message(client, message)
-  -- Parse JSON-RPC message
   local success, parsed = pcall(vim.json.decode, message)
   if not success then
     M.send_response(client, nil, nil, {
@@ -105,7 +110,6 @@ function M._handle_message(client, message)
     return
   end
 
-  -- Validate JSON-RPC format
   if type(parsed) ~= "table" or parsed.jsonrpc ~= "2.0" then
     M.send_response(client, parsed.id, nil, {
       code = -32600,
@@ -115,12 +119,9 @@ function M._handle_message(client, message)
     return
   end
 
-  -- Handle request vs notification
   if parsed.id then
-    -- Request - needs response
     M._handle_request(client, parsed)
   else
-    -- Notification - no response needed
     M._handle_notification(client, parsed)
   end
 end
@@ -143,7 +144,6 @@ function M._handle_request(client, request)
     return
   end
 
-  -- Call handler with error protection
   local success, result, error_data = pcall(handler, client, params)
   if success then
     if error_data then
@@ -177,12 +177,9 @@ end
 function M.register_handlers()
   M.state.handlers = {
     ["initialize"] = function(client, params) -- Renamed from mcp.connect
-      -- Handle MCP connection handshake
       return {
-        protocolVersion = "2024-11-05", -- TODO: Potentially negotiate based on params.protocolVersion
+        protocolVersion = MCP_PROTOCOL_VERSION,
         capabilities = {
-          -- Define server capabilities here
-          -- For now, mirroring client's example structure if useful, or keeping minimal
           logging = vim.empty_dict(), -- Ensure this is an object {} not an array []
           prompts = { listChanged = true },
           resources = { subscribe = true, listChanged = true },
@@ -190,45 +187,35 @@ function M.register_handlers()
         },
         serverInfo = {
           name = "claudecode-neovim",
-          version = "1.0.0", -- TODO: Use actual version
+          version = claudecode_main.version:string(),
         },
-        -- instructions = "Optional instructions for the client" -- If any
       }
     end,
 
     ["notifications/initialized"] = function(client, params) -- Added handler for initialized notification
-      -- No response needed for notifications
     end,
 
     ["prompts/list"] = function(client, params) -- Added handler for prompts/list
-      -- Return empty list of prompts
       return {
         prompts = {}, -- This will be encoded as an empty JSON array
       }
     end,
 
     ["tools/list"] = function(_client, _params)
-      -- Return list of available tools from the tools module
       return {
         tools = tools.get_tool_list(),
       }
     end,
 
     ["tools/call"] = function(client, params)
-      -- Handle tool invocation by dispatching to the tools module
       local result_or_error_table = tools.handle_invoke(client, params)
 
       if result_or_error_table.error then
-        -- Tool invocation resulted in an error
         return nil, result_or_error_table.error
       elseif result_or_error_table.result then
-        -- Tool invocation was successful
-        -- The tools.handle_invoke returns { result = actual_tool_output }
-        -- We need to return actual_tool_output as the result for the JSON-RPC response
         return result_or_error_table.result, nil
       else
-        -- Should not happen if tools.handle_invoke behaves correctly,
-        -- but handle as an internal error.
+        -- Should not happen if tools.handle_invoke behaves correctly
         return nil,
           {
             code = -32603,

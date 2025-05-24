@@ -75,7 +75,6 @@ M.state = {
 function M.setup(opts)
   opts = opts or {}
 
-  -- Separate terminal config from main config
   local terminal_opts = nil
   if opts.terminal then
     terminal_opts = opts.terminal
@@ -84,22 +83,25 @@ function M.setup(opts)
 
   local config = require("claudecode.config")
   M.state.config = config.apply(opts)
-  vim.g.claudecode_user_config = vim.deepcopy(M.state.config) -- Make config globally accessible
+  -- vim.g.claudecode_user_config is no longer needed as config values are passed directly.
 
-  if terminal_opts then
-    local terminal_setup_ok, terminal_module = pcall(require, "claudecode.terminal")
-    if terminal_setup_ok then
-      terminal_module.setup(terminal_opts)
-    else
-      vim.notify("Failed to load claudecode.terminal module for setup.", vim.log.levels.ERROR)
-    end
+  local logger = require("claudecode.logger")
+  logger.setup(M.state.config)
+
+  -- Setup terminal module: always try to call setup to pass terminal_cmd,
+  -- even if terminal_opts (for split_side etc.) are not provided.
+  local terminal_setup_ok, terminal_module = pcall(require, "claudecode.terminal")
+  if terminal_setup_ok then
+    -- terminal_opts might be nil if user only configured top-level terminal_cmd
+    -- and not specific terminal appearance options.
+    -- The terminal.setup function handles nil for its first argument.
+    terminal_module.setup(terminal_opts, M.state.config.terminal_cmd)
+  else
+    logger.error("init", "Failed to load claudecode.terminal module for setup.")
   end
 
-  -- Setup diff module with configuration
   local diff = require("claudecode.diff")
   diff.setup(M.state.config)
-
-  -- TODO: Set up logger with configured log level
 
   if M.state.config.auto_start then
     M.start(false) -- Suppress notification on auto-start
@@ -150,7 +152,6 @@ function M.start(show_startup_notification)
   local lock_success, lock_result = lockfile.create(M.state.port)
 
   if not lock_success then
-    -- Stop server if lock file creation fails
     server.stop()
     M.state.server = nil
     M.state.port = nil
@@ -161,7 +162,7 @@ function M.start(show_startup_notification)
 
   if M.state.config.track_selection then
     local selection = require("claudecode.selection")
-    selection.enable(server)
+    selection.enable(server, M.state.config.visual_demotion_delay_ms)
   end
 
   if show_startup_notification then
@@ -211,6 +212,8 @@ end
 --- Set up user commands
 ---@private
 function M._create_commands()
+  local logger = require("claudecode.logger")
+
   vim.api.nvim_create_user_command("ClaudeCodeStart", function()
     M.start()
   end, {
@@ -235,19 +238,73 @@ function M._create_commands()
 
   vim.api.nvim_create_user_command("ClaudeCodeSend", function(opts)
     if not M.state.server then
+      logger.error("command", "ClaudeCodeSend: Claude Code integration is not running.")
       vim.notify("Claude Code integration is not running", vim.log.levels.ERROR)
       return
     end
+    logger.debug(
+      "command",
+      "ClaudeCodeSend (new logic) invoked. Mode: "
+        .. vim.fn.mode(1)
+        .. ", Neovim's reported range: "
+        .. tostring(opts and opts.range)
+    )
+    -- We now ignore opts.range and rely on the selection module's state,
+    -- as opts.range was found to be 0 even when in visual mode for <cmd> mappings.
 
-    -- The selection.send_at_mention_for_visual_selection() function itself
-    -- will check for a valid visual selection and show an error if none exists.
-    -- This simplifies handling calls from keymaps vs. direct :'<,'>Cmd invocations.
-    local selection_module = require("claudecode.selection")
-    selection_module.send_at_mention_for_visual_selection()
+    if not M.state.server then
+      logger.error("command", "ClaudeCodeSend: Claude Code integration is not running.")
+      vim.notify("Claude Code integration is not running", vim.log.levels.ERROR, { title = "ClaudeCode Error" })
+      return
+    end
+
+    local selection_module_ok, selection_module = pcall(require, "claudecode.selection")
+    if selection_module_ok then
+      local sent_successfully = selection_module.send_at_mention_for_visual_selection()
+      if sent_successfully then
+        vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Esc>", true, false, true), "n", false)
+        logger.debug("command", "ClaudeCodeSend: Exited visual mode after successful send.")
+      end
+    else
+      logger.error("command", "ClaudeCodeSend: Failed to load selection module.")
+      vim.notify("Failed to send selection: selection module not loaded.", vim.log.levels.ERROR)
+    end
   end, {
     desc = "Send current visual selection as an at_mention to Claude Code",
     range = true, -- Important: This makes the command expect a range (visual selection)
   })
+
+  local terminal_ok, terminal = pcall(require, "claudecode.terminal")
+  if terminal_ok then
+    vim.api.nvim_create_user_command("ClaudeCode", function(_opts)
+      local current_mode = vim.fn.mode()
+      if current_mode == "v" or current_mode == "V" or current_mode == "\22" then -- \22 is CTRL-V (blockwise visual mode)
+        vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Esc>", true, false, true), "n", false)
+      end
+      terminal.toggle({}) -- `opts.fargs` can be used for future enhancements.
+    end, {
+      nargs = "?",
+      desc = "Toggle the Claude Code terminal window",
+    })
+
+    vim.api.nvim_create_user_command("ClaudeCodeOpen", function(_opts)
+      terminal.open({})
+    end, {
+      nargs = "?",
+      desc = "Open the Claude Code terminal window",
+    })
+
+    vim.api.nvim_create_user_command("ClaudeCodeClose", function()
+      terminal.close()
+    end, {
+      desc = "Close the Claude Code terminal window",
+    })
+  else
+    logger.error(
+      "init",
+      "Terminal module not found. Terminal commands (ClaudeCode, ClaudeCodeOpen, ClaudeCodeClose) not registered."
+    )
+  end
 end
 
 --- Get version information

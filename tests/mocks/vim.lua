@@ -1,15 +1,13 @@
--- Mock implementation of the Neovim API for tests
+--- Mock implementation of the Neovim API for tests.
 
--- Spy functionality for testing
+--- Spy functionality for testing.
+--- Provides a `spy.on` method to wrap functions and track their calls.
 if _G.spy == nil then
   _G.spy = {
     on = function(table, method_name)
-      -- Save original function
       local original = table[method_name]
-      -- Keep track of calls
       local calls = {}
 
-      -- Replace with spied function
       table[method_name] = function(...)
         table.insert(calls, { vals = { ... } })
         if original then
@@ -17,7 +15,6 @@ if _G.spy == nil then
         end
       end
 
-      -- Add spy methods to the function
       table[method_name].calls = calls
       table[method_name].spy = function()
         return {
@@ -33,11 +30,10 @@ if _G.spy == nil then
             local expected = { ... }
             assert(#calls > 0, "Function was never called")
 
-            -- Compare args
             local last_call = calls[#calls].vals
             for i, v in ipairs(expected) do
               if type(v) == "table" and v._type == "match" then
-                -- Use custom matcher (simplified)
+                -- Use custom matcher (simplified for this mock)
                 if v._match == "is_table" and type(last_call[i]) ~= "table" then
                   assert(false, "Expected table at arg " .. i)
                 end
@@ -54,7 +50,8 @@ if _G.spy == nil then
     end,
   }
 
-  -- Simple table matcher for spy assertions
+  --- Simple table matcher for spy assertions.
+  --- Allows checking if an argument was a table.
   _G.match = {
     is_table = function()
       return { _type = "match", _match = "is_table" }
@@ -166,7 +163,7 @@ local vim = {
     end,
 
     nvim_echo = function(chunks, history, opts)
-      -- Just store the last echo message for testing
+      -- Store the last echo message for test assertions.
       vim._last_echo = {
         chunks = chunks,
         history = history,
@@ -176,6 +173,32 @@ local vim = {
 
     nvim_err_writeln = function(msg)
       vim._last_error = msg
+    end,
+    nvim_buf_set_name = function(bufnr, name)
+      if vim._buffers[bufnr] then
+        vim._buffers[bufnr].name = name
+      else
+        -- TODO: Consider if error handling for 'buffer not found' is needed for tests.
+      end
+    end,
+    nvim_set_option_value = function(name, value, opts)
+      -- Note: This mock simplifies 'scope = "local"' handling.
+      -- In a real nvim_set_option_value, 'local' scope would apply to a specific
+      -- buffer or window. Here, it's stored in a general options table if not
+      -- a buffer-local option, or in the buffer's options table if `opts.buf` is provided.
+      -- A more complex mock might be needed for intricate scope-related tests.
+      if opts and opts.scope == "local" and opts.buf then
+        if vim._buffers[opts.buf] then
+          if not vim._buffers[opts.buf].options then
+            vim._buffers[opts.buf].options = {}
+          end
+          vim._buffers[opts.buf].options[name] = value
+        else
+          -- TODO: Consider if error handling for 'buffer not found' is needed for tests.
+        end
+      else
+        vim._options[name] = value
+      end
     end,
   },
 
@@ -243,16 +266,35 @@ local vim = {
       end
       return 0
     end,
+    stdpath = function(type)
+      if type == "cache" then
+        return "/tmp/nvim_mock_cache"
+      elseif type == "config" then
+        return "/tmp/nvim_mock_config"
+      elseif type == "data" then
+        return "/tmp/nvim_mock_data"
+      elseif type == "temp" then
+        return "/tmp"
+      else
+        return "/tmp/nvim_mock_stdpath_" .. type
+      end
+    end,
+    tempname = function()
+      -- Return a somewhat predictable temporary name for testing.
+      -- The random number ensures some uniqueness if called multiple times.
+      return "/tmp/nvim_mock_tempfile_" .. math.random(1, 100000)
+    end,
   },
 
   cmd = function(command)
-    -- Store the last command for testing
+    -- Store the last command for test assertions.
     vim._last_command = command
   end,
 
   json = {
     encode = function(data)
-      -- Simple JSON encoding for testing
+      -- Extremely simplified JSON encoding, sufficient for basic test cases.
+      -- Does not handle all JSON types or edge cases.
       if type(data) == "table" then
         local parts = {}
         for k, v in pairs(data) do
@@ -285,8 +327,9 @@ local vim = {
     end,
 
     decode = function(json_str)
-      -- This is just a stub - in real tests we would
-      -- use a proper JSON library or a more sophisticated mock
+      -- This is a non-functional stub for `vim.json.decode`.
+      -- If tests require actual JSON decoding, a proper library or a more
+      -- sophisticated mock implementation would be necessary.
       return {}
     end,
   },
@@ -334,7 +377,9 @@ local vim = {
     return result
   end,
 
-  -- Loop module stub
+  --- Stub for the `vim.loop` module.
+  --- Provides minimal implementations for TCP and timer functionalities
+  --- required by some plugin tests.
   loop = {
     new_tcp = function()
       return {
@@ -390,8 +435,20 @@ local vim = {
   end,
 
   defer_fn = function(fn, timeout)
-    -- For testing, we'll execute immediately
+    -- For testing purposes, this mock executes the deferred function immediately
+    -- instead of after a timeout.
     fn()
+  end,
+
+  notify = function(msg, level, opts)
+    -- Store the last notification for test assertions.
+    vim._last_notify = {
+      msg = msg,
+      level = level,
+      opts = opts,
+    }
+    -- Return a mock notification ID, as some code might expect a return value.
+    return 1
   end,
 
   log = {
@@ -402,8 +459,9 @@ local vim = {
       WARN = 3,
       ERROR = 4,
     },
-    -- Mock actual vim.log function if needed, e.g., vim.log.debug(...)
-    -- For now, just providing levels for vim.notify
+    -- Provides log level constants, similar to `vim.log.levels`.
+    -- The actual logging functions (trace, debug, etc.) are no-ops in this mock.
+    -- These are primarily for `vim.notify` level compatibility if used.
     trace = function(...) end,
     debug = function(...) end,
     info = function(...) end,
@@ -411,10 +469,11 @@ local vim = {
     error = function(...) end,
   },
 
-  -- Helper functions for tests to set up mock state
+  --- Internal helper functions for tests to manipulate the mock's state.
+  --- These are not part of the Neovim API but are useful for setting up
+  --- specific scenarios for testing plugins.
   _mock = {
     add_buffer = function(bufnr, name, content, opts)
-      -- Use 'self' reference instead of global vim
       _G.vim._buffers[bufnr] = {
         name = name,
         lines = type(content) == "string" and _G.vim._mock.split_lines(content) or content,
@@ -452,11 +511,9 @@ local vim = {
   },
 }
 
--- Initialize with some mock state once vim is assigned to _G
 if _G.vim == nil then
-  _G.vim = vim -- Ensure the global vim is set before initialization
+  _G.vim = vim
 end
--- Initialize buffers and windows after _G.vim is defined
 vim._mock.add_buffer(1, "/home/user/project/test.lua", "local test = {}\nreturn test")
 vim._mock.add_window(0, 1, { 1, 0 })
 

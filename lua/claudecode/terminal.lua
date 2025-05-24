@@ -14,14 +14,14 @@ if not snacks_available then
   )
 end
 
-local claudecode_config_module = require("claudecode.config")
 local claudecode_server_module = require("claudecode.server")
 
 local term_module_config = {
-  split_side = "right", -- 'left' or 'right'
-  split_width_percentage = 0.30, -- e.g., 0.30 for 30%
-  provider = "snacks", -- "snacks" or "native"
-  show_native_term_exit_tip = true, -- Show tip for Ctrl-\\ Ctrl-N
+  split_side = "right",
+  split_width_percentage = 0.30,
+  provider = "snacks",
+  show_native_term_exit_tip = true,
+  terminal_cmd = nil, -- Will be set by setup() from main config
 }
 
 --- State to keep track of the managed Claude terminal instance (from Snacks).
@@ -33,21 +33,12 @@ local managed_fallback_terminal_winid = nil
 local managed_fallback_terminal_jobid = nil
 local native_term_tip_shown = false
 
---- Retrieves the current merged ClaudeCode configuration.
--- @local
--- @return table The current configuration.
-local function get_current_claudecode_config()
-  local user_config = vim.g.claudecode_user_config or {}
-  return claudecode_config_module.apply(user_config)
-end
-
---- Determines the command to run in the terminal.
--- Uses the `terminal_cmd` from the main configuration, or defaults to "claude".
+-- Determines the command to run in the terminal.
+-- Uses the `terminal_cmd` from the module's configuration, or defaults to "claude".
 -- @local
 -- @return string The command to execute.
 local function get_claude_command()
-  local current_main_config = get_current_claudecode_config()
-  local cmd_from_config = current_main_config.terminal_cmd
+  local cmd_from_config = term_module_config.terminal_cmd
   if not cmd_from_config or cmd_from_config == "" then
     return "claude" -- Default if not configured
   end
@@ -55,19 +46,33 @@ local function get_claude_command()
 end
 
 --- Configures the terminal module.
--- Merges user-provided terminal configuration with defaults.
+-- Merges user-provided terminal configuration with defaults and sets the terminal command.
 -- @param user_term_config table (optional) Configuration options for the terminal.
 -- @field user_term_config.split_side string 'left' or 'right' (default: 'right').
 -- @field user_term_config.split_width_percentage number Percentage of screen width (0.0 to 1.0, default: 0.30).
 -- @field user_term_config.provider string 'snacks' or 'native' (default: 'snacks').
 -- @field user_term_config.show_native_term_exit_tip boolean Show tip for exiting native terminal (default: true).
-function M.setup(user_term_config)
-  if type(user_term_config) ~= "table" then
-    vim.notify("claudecode.terminal.setup expects a table", vim.log.levels.WARN)
+-- @param p_terminal_cmd string|nil The command to run in the terminal (from main config).
+function M.setup(user_term_config, p_terminal_cmd)
+  if user_term_config == nil then -- Allow nil, default to empty table silently
+    user_term_config = {}
+  elseif type(user_term_config) ~= "table" then -- Warn if it's not nil AND not a table
+    vim.notify("claudecode.terminal.setup expects a table or nil for user_term_config", vim.log.levels.WARN)
     user_term_config = {}
   end
+
+  if p_terminal_cmd == nil or type(p_terminal_cmd) == "string" then
+    term_module_config.terminal_cmd = p_terminal_cmd
+  else
+    vim.notify(
+      "claudecode.terminal.setup: Invalid terminal_cmd provided: " .. tostring(p_terminal_cmd) .. ". Using default.",
+      vim.log.levels.WARN
+    )
+    term_module_config.terminal_cmd = nil -- Fallback to default behavior in get_claude_command
+  end
+
   for k, v in pairs(user_term_config) do
-    if term_module_config[k] ~= nil then
+    if term_module_config[k] ~= nil and k ~= "terminal_cmd" then -- terminal_cmd is handled above
       if k == "split_side" and (v == "left" or v == "right") then
         term_module_config[k] = v
       elseif k == "split_width_percentage" and type(v) == "number" and v > 0 and v < 1 then
@@ -79,7 +84,7 @@ function M.setup(user_term_config)
       else
         vim.notify("claudecode.terminal.setup: Invalid value for " .. k .. ": " .. tostring(v), vim.log.levels.WARN)
       end
-    else
+    elseif k ~= "terminal_cmd" then -- Avoid warning for terminal_cmd if passed in user_term_config
       vim.notify("claudecode.terminal.setup: Unknown configuration key: " .. k, vim.log.levels.WARN)
     end
   end
@@ -130,18 +135,17 @@ local function is_fallback_terminal_valid()
       return true
     end
   end
-  -- If any check fails or state vars are nil, cleanup and return false
   cleanup_fallback_terminal_state()
   return false
 end
 
 --- Opens a new terminal using native Neovim functions.
 -- @local
--- @param base_command string The base command to run.
+-- @param cmd_string string The command string to run.
 -- @param env_table table Environment variables for the command.
 -- @param effective_term_config table Configuration for split_side and split_width_percentage.
 -- @return boolean True if successful, false otherwise.
-local function open_fallback_terminal(base_command, env_table, effective_term_config)
+local function open_fallback_terminal(cmd_string, env_table, effective_term_config)
   if is_fallback_terminal_valid() then -- Should not happen if called correctly, but as a safeguard
     vim.api.nvim_set_current_win(managed_fallback_terminal_winid)
     vim.cmd("startinsert")
@@ -171,7 +175,14 @@ local function open_fallback_terminal(base_command, env_table, effective_term_co
   end)
   -- Note: vim.api.nvim_win_set_width is not needed here again as [N]vsplit handles it.
 
-  managed_fallback_terminal_jobid = vim.fn.termopen(base_command, {
+  local term_cmd_arg
+  if cmd_string:find(" ", 1, true) then
+    term_cmd_arg = vim.split(cmd_string, " ", { plain = true, trimempty = false })
+  else
+    term_cmd_arg = { cmd_string }
+  end
+
+  managed_fallback_terminal_jobid = vim.fn.termopen(term_cmd_arg, {
     env = env_table,
     on_exit = function(job_id, _, _)
       vim.schedule(function()
@@ -186,7 +197,7 @@ local function open_fallback_terminal(base_command, env_table, effective_term_co
             if current_bufnr_for_job and vim.api.nvim_buf_is_valid(current_bufnr_for_job) then
               -- Optional: Check if the window still holds the same terminal buffer
               if vim.api.nvim_win_get_buf(current_winid_for_job) == current_bufnr_for_job then
-                vim.api.nvim_win_close(current_winid_for_job, true) -- Force close
+                vim.api.nvim_win_close(current_winid_for_job, true)
               end
             else
               -- Buffer is invalid, but window might still be there (e.g. if user changed buffer in term window)
@@ -201,8 +212,8 @@ local function open_fallback_terminal(base_command, env_table, effective_term_co
 
   if not managed_fallback_terminal_jobid or managed_fallback_terminal_jobid == 0 then
     vim.notify("Failed to open native terminal.", vim.log.levels.ERROR)
-    vim.api.nvim_win_close(new_winid, true) -- Close the split we opened
-    vim.api.nvim_set_current_win(original_win) -- Restore original window
+    vim.api.nvim_win_close(new_winid, true)
+    vim.api.nvim_set_current_win(original_win)
     cleanup_fallback_terminal_state()
     return false
   end
@@ -281,6 +292,7 @@ end
 -- @return table The options table for Snacks.
 local function build_snacks_opts(effective_term_config_for_snacks, env_table)
   return {
+    -- cmd is passed as the first argument to Snacks.terminal.open/toggle
     env = env_table,
     interactive = true, -- for auto_close and start_insert
     enter = true, -- focus the terminal when opened
@@ -298,16 +310,18 @@ local function build_snacks_opts(effective_term_config_for_snacks, env_table)
   }
 end
 
---- Gets the base claude command and necessary environment variables.
+--- Gets the base claude command string and necessary environment variables.
 -- @local
--- @return string|nil base_command The base command string, or nil on failure.
+-- @return string|nil cmd_string The command string, or nil on failure.
 -- @return table|nil env_table The environment variables table, or nil on failure.
 local function get_claude_command_and_env()
-  local base_command = get_claude_command()
-  if not base_command or base_command == "" then
+  local cmd_string = get_claude_command()
+  if not cmd_string or cmd_string == "" then
     vim.notify("Claude terminal base command cannot be determined.", vim.log.levels.ERROR)
     return nil, nil
   end
+
+  -- cmd_string is returned as is; splitting will be handled by consumer if needed (e.g., for native termopen)
 
   local sse_port_value = claudecode_server_module.state.port
   local env_table = {
@@ -319,7 +333,7 @@ local function get_claude_command_and_env()
     env_table["CLAUDE_CODE_SSE_PORT"] = tostring(sse_port_value)
   end
 
-  return base_command, env_table
+  return cmd_string, env_table
 end
 
 --- Opens or focuses the Claude terminal.
@@ -327,9 +341,9 @@ end
 function M.open(opts_override)
   local provider = get_effective_terminal_provider()
   local effective_config = build_effective_term_config(opts_override)
-  local base_claude_command, claude_env_table = get_claude_command_and_env()
+  local cmd_string, claude_env_table = get_claude_command_and_env()
 
-  if not base_claude_command then
+  if not cmd_string then
     -- Error already notified by the helper function
     return
   end
@@ -350,7 +364,7 @@ function M.open(opts_override)
       return
     end
     local snacks_opts = build_snacks_opts(effective_config, claude_env_table)
-    local term_instance = Snacks.terminal.open(base_claude_command, snacks_opts)
+    local term_instance = Snacks.terminal.open(cmd_string, snacks_opts)
     if term_instance and term_instance:valid() then
       managed_snacks_terminal = term_instance
     else
@@ -361,7 +375,7 @@ function M.open(opts_override)
     if is_fallback_terminal_valid() then
       focus_fallback_terminal()
     else
-      if not open_fallback_terminal(base_claude_command, claude_env_table, effective_config) then
+      if not open_fallback_terminal(cmd_string, claude_env_table, effective_config) then
         vim.notify("Failed to open Claude terminal using native fallback.", vim.log.levels.ERROR)
       end
     end
@@ -389,9 +403,9 @@ end
 function M.toggle(opts_override)
   local provider = get_effective_terminal_provider()
   local effective_config = build_effective_term_config(opts_override)
-  local base_claude_command, claude_env_table = get_claude_command_and_env()
+  local cmd_string, claude_env_table = get_claude_command_and_env()
 
-  if not base_claude_command then
+  if not cmd_string then
     return -- Error already notified
   end
 
@@ -409,7 +423,7 @@ function M.toggle(opts_override)
       if claude_term_neovim_win_id == current_neovim_win_id then
         -- Snacks.terminal.toggle will return an invalid instance or nil.
         -- The on_close callback (defined in build_snacks_opts) will set managed_snacks_terminal to nil.
-        local closed_instance = Snacks.terminal.toggle(base_claude_command, snacks_opts)
+        local closed_instance = Snacks.terminal.toggle(cmd_string, snacks_opts)
         if closed_instance and closed_instance:valid() then
           -- This would be unexpected if it was supposed to close and on_close fired.
           -- As a fallback, ensure our state reflects what Snacks returned if it's somehow still valid.
@@ -426,11 +440,11 @@ function M.toggle(opts_override)
         end
       end
     else
-      local term_instance = Snacks.terminal.toggle(base_claude_command, snacks_opts)
+      local term_instance = Snacks.terminal.toggle(cmd_string, snacks_opts)
       if term_instance and term_instance:valid() and term_instance.win then
         managed_snacks_terminal = term_instance
       else
-        managed_snacks_terminal = nil -- Ensure it's nil if open failed or instance invalid
+        managed_snacks_terminal = nil
         if not (term_instance == nil and managed_snacks_terminal == nil) then -- Avoid notify if toggle returned nil and we set to nil
           vim.notify("Failed to open Snacks terminal or instance invalid after toggle.", vim.log.levels.WARN)
         end
@@ -447,7 +461,7 @@ function M.toggle(opts_override)
         focus_fallback_terminal() -- This already calls startinsert
       end
     else
-      if not open_fallback_terminal(base_claude_command, claude_env_table, effective_config) then
+      if not open_fallback_terminal(cmd_string, claude_env_table, effective_config) then
         vim.notify("Failed to open Claude terminal using native fallback (toggle).", vim.log.levels.ERROR)
       end
     end
@@ -472,7 +486,7 @@ function M.get_active_terminal_bufnr()
     end
   end
 
-  if is_fallback_terminal_valid() then -- This checks bufnr and winid validity
+  if is_fallback_terminal_valid() then
     return managed_fallback_terminal_bufnr
   end
 

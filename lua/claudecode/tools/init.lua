@@ -1,14 +1,11 @@
 -- Tool implementation for Claude Code Neovim integration
 local M = {}
 
--- Tool registry
 M.tools = {}
 
--- Initialize tools
 function M.setup(server)
   M.server = server
 
-  -- Register all tools
   M.register_all()
 end
 
@@ -31,7 +28,6 @@ function M.get_tool_list()
   return tool_list
 end
 
--- Register all tools
 function M.register_all()
   -- Register MCP-exposed tools with schemas
   M.register("openFile", {
@@ -118,10 +114,9 @@ function M.register_all()
   M.register("getLatestSelection", nil, M.get_latest_selection)
   M.register("checkDocumentDirty", nil, M.check_document_dirty)
   M.register("saveDocument", nil, M.save_document)
-  M.register("close_tab", nil, M.close_tab)
+  M.register("closeBufferByName", nil, M.close_buffer_by_name)
 end
 
--- Register a tool with optional schema
 function M.register(name, schema, handler)
   M.tools[name] = {
     handler = handler,
@@ -129,12 +124,10 @@ function M.register(name, schema, handler)
   }
 end
 
--- Handle tool invocation
 function M.handle_invoke(_, params) -- '_' for unused client param
   local tool_name = params.name
   local input = params.arguments
 
-  -- Check if tool exists
   if not M.tools[tool_name] then
     return {
       error = {
@@ -144,7 +137,6 @@ function M.handle_invoke(_, params) -- '_' for unused client param
     }
   end
 
-  -- Execute the tool handler
   local tool_data = M.tools[tool_name]
   local success, result = pcall(tool_data.handler, input)
 
@@ -162,74 +154,46 @@ function M.handle_invoke(_, params) -- '_' for unused client param
   }
 end
 
--- Tool: Open a file
 function M.open_file(params)
-  -- Validate parameters
   if not params.filePath then
     return {
-      content = {
-        {
-          type = "text",
-          text = "Error: Missing filePath parameter",
-        },
-      },
+      content = { { type = "text", text = "Error: Missing filePath parameter" } },
+      isError = true,
     }
   end
 
-  -- Expand path if needed
   local file_path = vim.fn.expand(params.filePath)
 
-  -- Check if file exists
   if vim.fn.filereadable(file_path) == 0 then
     return {
-      content = {
-        {
-          type = "text",
-          text = "Error: File not found: " .. file_path,
-        },
-      },
+      content = { { type = "text", text = "Error: File not found: " .. file_path } },
+      isError = true,
     }
   end
 
-  -- Open the file
   vim.cmd("edit " .. vim.fn.fnameescape(file_path))
 
-  -- Handle selection if specified (commented to avoid empty branch warning)
-  -- if params.startText and params.endText then
-  --   -- TODO: Implement selection by text patterns
-  -- end
+  -- TODO: Implement selection by text patterns if params.startText and params.endText are provided.
 
   return {
-    content = {
-      {
-        type = "text",
-        text = "File opened: " .. file_path,
-      },
-    },
+    content = { { type = "text", text = "File opened: " .. file_path } },
+    isError = false,
   }
 end
 
--- Tool: Get diagnostics
 function M.get_diagnostics(_) -- '_' for unused params
-  -- Check if LSP is available
-  if not vim.lsp then
+  if not vim.lsp or not vim.diagnostic or not vim.diagnostic.get then
     return {
-      content = {
-        {
-          type = "text",
-          text = "LSP not available",
-        },
-      },
+      content = { { type = "text", text = "LSP or vim.diagnostic.get not available" } },
+      isError = true, -- Consider this an error or a specific state
     }
   end
 
-  -- Get diagnostics for all buffers
   local all_diagnostics = vim.diagnostic.get()
 
-  -- Format diagnostics
-  local result = {}
+  local formatted_diagnostics = {}
   for _, diagnostic in ipairs(all_diagnostics) do
-    table.insert(result, {
+    table.insert(formatted_diagnostics, {
       file = vim.api.nvim_buf_get_name(diagnostic.bufnr),
       line = diagnostic.lnum,
       character = diagnostic.col,
@@ -240,20 +204,14 @@ function M.get_diagnostics(_) -- '_' for unused params
   end
 
   return {
-    content = {
-      {
-        type = "text",
-        text = vim.json.encode(result),
-      },
-    },
+    content = { { type = "text", text = vim.json.encode({ diagnostics = formatted_diagnostics }) } },
+    isError = false,
   }
 end
 
--- Tool: Get open editors
 function M.get_open_editors(_params) -- Prefix unused params with underscore
   local editors = {}
 
-  -- Get list of all buffers
   local buffers = vim.api.nvim_list_bufs()
 
   for _, bufnr in ipairs(buffers) do
@@ -261,7 +219,6 @@ function M.get_open_editors(_params) -- Prefix unused params with underscore
     if vim.api.nvim_buf_is_loaded(bufnr) and vim.fn.buflisted(bufnr) == 1 then
       local file_path = vim.api.nvim_buf_get_name(bufnr)
 
-      -- Skip empty file paths
       if file_path and file_path ~= "" then
         table.insert(editors, {
           filePath = file_path,
@@ -273,18 +230,12 @@ function M.get_open_editors(_params) -- Prefix unused params with underscore
   end
 
   return {
-    content = {
-      {
-        type = "text",
-        text = vim.json.encode(editors),
-      },
-    },
+    content = { { type = "text", text = vim.json.encode({ editors = editors }) } },
+    isError = false,
   }
 end
 
--- Tool: Get workspace folders
 function M.get_workspace_folders(_) -- '_' for unused params
-  -- Get current working directory
   local cwd = vim.fn.getcwd()
 
   -- For now, just return the current working directory
@@ -299,166 +250,115 @@ function M.get_workspace_folders(_) -- '_' for unused params
   }
 
   return {
-    content = {
-      {
-        type = "text",
-        text = vim.json.encode(folders),
-      },
-    },
+    content = { { type = "text", text = vim.json.encode({ workspaceFolders = folders }) } },
+    isError = false,
   }
 end
 
--- Tool: Get current selection
 function M.get_current_selection(_) -- '_' for unused params
-  -- Get selection from selection module
-  -- This is a placeholder; in the real implementation,
-  -- this would call into the selection module
-
+  -- Placeholder: delegates to selection module
   local selection = require("claudecode.selection").get_latest_selection()
 
   if not selection then
     return {
-      content = {
-        {
-          type = "text",
-          text = "No selection available",
-        },
-      },
+      content = { { type = "text", text = "No selection available" } },
+      isError = true, -- Or false, depending on whether "no selection" is an error or valid state
     }
   end
 
   return {
-    content = {
-      {
-        type = "text",
-        text = vim.json.encode(selection),
-      },
-    },
+    content = { { type = "text", text = vim.json.encode(selection) } },
+    isError = false,
   }
 end
 
--- Tool: Get latest selection
 function M.get_latest_selection(_) -- '_' for unused params
   -- Same as get_current_selection for now
   return M.get_current_selection(_)
 end
 
--- Tool: Check if document has unsaved changes
 function M.check_document_dirty(params)
-  -- Validate parameters
   if not params.filePath then
     return {
-      content = {
-        {
-          type = "text",
-          text = "Error: Missing filePath parameter",
-        },
-      },
+      content = { { type = "text", text = "Error: Missing filePath parameter" } },
+      isError = true,
     }
   end
 
-  -- Find buffer for the file path
   local bufnr = vim.fn.bufnr(params.filePath)
 
   if bufnr == -1 then
     return {
-      content = {
-        {
-          type = "text",
-          text = "Error: File not open in editor: " .. params.filePath,
-        },
-      },
+      content = { { type = "text", text = "Error: File not open in editor: " .. params.filePath } },
+      isError = true,
     }
   end
 
-  -- Check if buffer is modified
   local is_dirty = vim.api.nvim_buf_get_option(bufnr, "modified")
 
   return {
-    content = {
-      {
-        type = "text",
-        text = vim.json.encode({ isDirty = is_dirty }),
-      },
-    },
+    content = { { type = "text", text = vim.json.encode({ isDirty = is_dirty }) } },
+    isError = false,
   }
 end
 
--- Tool: Save a document
 function M.save_document(params)
-  -- Validate parameters
   if not params.filePath then
     return {
-      content = {
-        {
-          type = "text",
-          text = "Error: Missing filePath parameter",
-        },
-      },
+      content = { { type = "text", text = "Error: Missing filePath parameter" } },
+      isError = true,
     }
   end
 
-  -- Find buffer for the file path
   local bufnr = vim.fn.bufnr(params.filePath)
 
   if bufnr == -1 then
     return {
-      content = {
-        {
-          type = "text",
-          text = "Error: File not open in editor: " .. params.filePath,
-        },
-      },
+      content = { { type = "text", text = "Error: File not open in editor: " .. params.filePath } },
+      isError = true,
     }
   end
 
-  -- Save the buffer
   vim.api.nvim_buf_call(bufnr, function()
     vim.cmd("write")
   end)
 
   return {
-    content = {
-      {
-        type = "text",
-        text = "File saved: " .. params.filePath,
-      },
-    },
+    content = { { type = "text", text = "File saved: " .. params.filePath } },
+    isError = false,
   }
 end
 
--- Tool: Open a diff view
 function M.open_diff(params)
-  -- Enhanced parameter validation
   local required_params = { "old_file_path", "new_file_path", "new_file_contents", "tab_name" }
-  for _, param in ipairs(required_params) do
-    if not params[param] then
+  for _, param_name in ipairs(required_params) do
+    if not params[param_name] then
       return {
-        content = {
-          {
-            type = "text",
-            text = "Error: Missing required parameter: " .. param,
-          },
-        },
+        content = { { type = "text", text = "Error: Missing required parameter: " .. param_name } },
         isError = true,
       }
     end
   end
 
-  -- Use the diff module
-  local diff = require("claudecode.diff")
+  local diff_module = require("claudecode.diff")
 
-  local success, result = pcall(function()
-    return diff.open_diff(params.old_file_path, params.new_file_path, params.new_file_contents, params.tab_name)
+  local success, result_data = pcall(function()
+    return diff_module.open_diff(params.old_file_path, params.new_file_path, params.new_file_contents, params.tab_name)
   end)
 
   if not success then
+    -- result_data here is the error message from pcall
+    return {
+      content = { { type = "text", text = "Error opening diff: " .. tostring(result_data) } },
+      isError = true,
+    }
+  end
+
+  -- result_data from diff.open_diff is a table like { provider = "...", tab_name = "...", success = true/false, error = "..." }
+  if not result_data.success then
     return {
       content = {
-        {
-          type = "text",
-          text = "Error opening diff: " .. tostring(result),
-        },
+        { type = "text", text = "Error from diff provider: " .. (result_data.error or "Unknown diff error") },
       },
       isError = true,
     }
@@ -470,54 +370,39 @@ function M.open_diff(params)
         type = "text",
         text = string.format(
           "Diff opened using %s provider: %s (%s vs %s)",
-          result.provider,
-          result.tab_name,
+          result_data.provider or "unknown",
+          result_data.tab_name or "untitled",
           params.old_file_path,
           params.new_file_path
         ),
       },
     },
+    isError = false,
   }
 end
 
--- Tool: Close a tab
-function M.close_tab(params)
-  -- Validate parameters
-  if not params.tab_name then
+function M.close_buffer_by_name(params)
+  if not params.buffer_name then
     return {
-      content = {
-        {
-          type = "text",
-          text = "Error: Missing tab_name parameter",
-        },
-      },
+      content = { { type = "text", text = "Error: Missing buffer_name parameter" } },
+      isError = true,
     }
   end
 
-  -- Find buffer with tab_name
-  local bufnr = vim.fn.bufnr(params.tab_name)
+  local bufnr = vim.fn.bufnr(params.buffer_name)
 
   if bufnr == -1 then
     return {
-      content = {
-        {
-          type = "text",
-          text = "Error: Tab not found: " .. params.tab_name,
-        },
-      },
+      content = { { type = "text", text = "Error: Buffer not found: " .. params.buffer_name } },
+      isError = true,
     }
   end
 
-  -- Close the buffer
   vim.api.nvim_buf_delete(bufnr, { force = false })
 
   return {
-    content = {
-      {
-        type = "text",
-        text = "Tab closed: " .. params.tab_name,
-      },
-    },
+    content = { { type = "text", text = "Buffer closed: " .. params.buffer_name } },
+    isError = false,
   }
 end
 
