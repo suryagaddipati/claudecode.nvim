@@ -312,6 +312,7 @@ local function get_claude_command_and_env()
   local sse_port_value = claudecode_server_module.state.port
   local env_table = {
     ENABLE_IDE_INTEGRATION = "true",
+    FORCE_CODE_TERMINAL = "true",
   }
 
   if sse_port_value then

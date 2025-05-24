@@ -6,7 +6,7 @@
 
 A Neovim plugin that integrates with Claude Code CLI to provide a seamless AI coding experience in Neovim.
 
-https://github.com/user-attachments/assets/c625d855-5f32-4a1f-8757-1a3150e2786d
+<https://github.com/user-attachments/assets/c625d855-5f32-4a1f-8757-1a3150e2786d>
 
 ## Features
 
@@ -57,6 +57,7 @@ Add the following to your plugins configuration:
   config = true,
   -- Optional: Add convenient keymaps
   keys = {
+    { "<leader>a", nil, mode = { "n", "v" }, desc = "AI/Claude Code" },
     { "<leader>ac", "<cmd>ClaudeCode<cr>", mode = { "n", "v" }, desc = "Toggle Claude Terminal" },
     { "<leader>ak", "<cmd>ClaudeCodeSend<cr>", mode = { "n", "v" }, desc = "Send to Claude Code" },
     { "<leader>ao", "<cmd>ClaudeCodeOpen<cr>", mode = { "n", "v" }, desc = "Open/Focus Claude Terminal" },
@@ -127,6 +128,7 @@ return {
     },
     config = true,
     keys = {
+      { "<leader>a", nil, mode = { "n", "v" }, desc = "AI/Claude Code" },
       { "<leader>ac", "<cmd>ClaudeCode<cr>", mode = { "n", "v" }, desc = "Toggle Claude Terminal" },
       { "<leader>ak", "<cmd>ClaudeCodeSend<cr>", mode = { "n", "v" }, desc = "Send to Claude Code" },
       { "<leader>ao", "<cmd>ClaudeCodeOpen<cr>", mode = { "n", "v" }, desc = "Open/Focus Claude Terminal" },
