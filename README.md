@@ -60,7 +60,7 @@ Add the following to your plugins configuration:
   keys = {
     { "<leader>a", nil, mode = { "n", "v" }, desc = "AI/Claude Code" },
     { "<leader>ac", "<cmd>ClaudeCode<cr>", mode = { "n", "v" }, desc = "Toggle Claude Terminal" },
-    { "<leader>ak", "<cmd>ClaudeCodeSend<cr>", mode = { "n", "v" }, desc = "Send to Claude Code" },
+    { "<leader>ak", "<cmd>ClaudeCodeSend<cr>", mode = { "v" }, desc = "Send to Claude Code" },
     { "<leader>ao", "<cmd>ClaudeCodeOpen<cr>", mode = { "n", "v" }, desc = "Open/Focus Claude Terminal" },
     { "<leader>ax", "<cmd>ClaudeCodeClose<cr>", mode = { "n", "v" }, desc = "Close Claude Terminal" },
   },
@@ -131,7 +131,7 @@ return {
     keys = {
       { "<leader>a", nil, mode = { "n", "v" }, desc = "AI/Claude Code" },
       { "<leader>ac", "<cmd>ClaudeCode<cr>", mode = { "n", "v" }, desc = "Toggle Claude Terminal" },
-      { "<leader>ak", "<cmd>ClaudeCodeSend<cr>", mode = { "n", "v" }, desc = "Send to Claude Code" },
+      { "<leader>ak", "<cmd>ClaudeCodeSend<cr>", mode = { "v" }, desc = "Send to Claude Code" },
       { "<leader>ao", "<cmd>ClaudeCodeOpen<cr>", mode = { "n", "v" }, desc = "Open/Focus Claude Terminal" },
       { "<leader>ax", "<cmd>ClaudeCodeClose<cr>", mode = { "n", "v" }, desc = "Close Claude Terminal" },
     },
@@ -261,7 +261,7 @@ No default keymaps are provided. Add your own in your configuration:
 
 ```lua
 vim.keymap.set({"n", "v"}, "<leader>ac", "<cmd>ClaudeCode<cr>", { desc = "Toggle Claude Terminal" })
-vim.keymap.set({"n", "v"}, "<leader>ak", "<cmd>ClaudeCodeSend<cr>", { desc = "Send to Claude Code" })
+vim.keymap.set({"v"}, "<leader>ak", "<cmd>ClaudeCodeSend<cr>", { desc = "Send to Claude Code" })
 
 -- Or more specific maps:
 vim.keymap.set({"n", "v"}, "<leader>ao", "<cmd>ClaudeCodeOpen<cr>", { desc = "Open/Focus Claude Terminal" })

@@ -1,6 +1,15 @@
 -- Tool implementation for Claude Code Neovim integration
 local M = {}
 
+M.ERROR_CODES = {
+  PARSE_ERROR = -32700,
+  INVALID_REQUEST = -32600,
+  METHOD_NOT_FOUND = -32601,
+  INVALID_PARAMS = -32602,
+  INTERNAL_ERROR = -32000, -- Default for tool execution if not more specific
+  -- Custom / server specific: -32000 to -32099
+}
+
 M.tools = {}
 
 function M.setup(server)
@@ -30,97 +39,39 @@ end
 
 function M.register_all()
   -- Register MCP-exposed tools with schemas
-  M.register("openFile", {
-    description = "Opens a file in the editor with optional selection by line numbers or text patterns",
-    inputSchema = {
-      type = "object",
-      properties = {
-        filePath = {
-          type = "string",
-          description = "Path to the file to open",
-        },
-        startLine = {
-          type = "integer",
-          description = "Optional: Line number to start selection",
-        },
-        endLine = {
-          type = "integer",
-          description = "Optional: Line number to end selection",
-        },
-        startText = {
-          type = "string",
-          description = "Optional: Text pattern to start selection",
-        },
-        endText = {
-          type = "string",
-          description = "Optional: Text pattern to end selection",
-        },
-      },
-      required = { "filePath" },
-      additionalProperties = false,
-      ["$schema"] = "http://json-schema.org/draft-07/schema#",
-    },
-  }, M.open_file)
-
-  M.register("getCurrentSelection", {
-    description = "Get the current text selection in the editor",
-    inputSchema = {
-      type = "object",
-      additionalProperties = false,
-      ["$schema"] = "http://json-schema.org/draft-07/schema#",
-    },
-  }, M.get_current_selection)
-
-  M.register("getOpenEditors", {
-    description = "Get list of currently open files",
-    inputSchema = {
-      type = "object",
-      additionalProperties = false,
-      ["$schema"] = "http://json-schema.org/draft-07/schema#",
-    },
-  }, M.get_open_editors)
-
-  M.register("openDiff", {
-    description = "Open a diff view comparing old file content with new file content",
-    inputSchema = {
-      type = "object",
-      properties = {
-        old_file_path = {
-          type = "string",
-          description = "Path to the old file to compare",
-        },
-        new_file_path = {
-          type = "string",
-          description = "Path to the new file to compare",
-        },
-        new_file_contents = {
-          type = "string",
-          description = "Contents for the new file version",
-        },
-        tab_name = {
-          type = "string",
-          description = "Name for the diff tab/view",
-        },
-      },
-      required = { "old_file_path", "new_file_path", "new_file_contents", "tab_name" },
-      additionalProperties = false,
-      ["$schema"] = "http://json-schema.org/draft-07/schema#",
-    },
-  }, M.open_diff)
+  M.register(require("claudecode.tools.open_file"))
+  M.register(require("claudecode.tools.get_current_selection"))
+  M.register(require("claudecode.tools.get_open_editors"))
+  M.register(require("claudecode.tools.open_diff"))
 
   -- Register internal tools without schemas (not exposed via MCP)
-  M.register("getDiagnostics", nil, M.get_diagnostics)
-  M.register("getWorkspaceFolders", nil, M.get_workspace_folders)
-  M.register("getLatestSelection", nil, M.get_latest_selection)
-  M.register("checkDocumentDirty", nil, M.check_document_dirty)
-  M.register("saveDocument", nil, M.save_document)
-  M.register("closeBufferByName", nil, M.close_buffer_by_name)
+  M.register(require("claudecode.tools.get_diagnostics"))
+  M.register(require("claudecode.tools.get_workspace_folders"))
+  -- M.register("getLatestSelection", nil, M.get_latest_selection) -- This tool is effectively covered by getCurrentSelection
+  M.register(require("claudecode.tools.check_document_dirty"))
+  M.register(require("claudecode.tools.save_document"))
+  M.register(require("claudecode.tools.close_buffer_by_name"))
 end
 
-function M.register(name, schema, handler)
-  M.tools[name] = {
-    handler = handler,
-    schema = schema,
+function M.register(tool_module)
+  if not tool_module or not tool_module.name or not tool_module.handler then
+    local name = "unknown"
+    if type(tool_module) == "table" and type(tool_module.name) == "string" then
+      name = tool_module.name
+    elseif type(tool_module) == "string" then -- if require failed, it might be the path string
+      name = tool_module
+    end
+    vim.notify(
+      "Error registering tool: Invalid tool module structure for " .. name,
+      vim.log.levels.ERROR,
+      { title = "ClaudeCode Tool Registration" }
+    )
+    return
+  end
+
+  M.tools[tool_module.name] = {
+    handler = tool_module.handler,
+    schema = tool_module.schema, -- Will be nil if not defined in the module
   }
 end
 
@@ -131,279 +82,79 @@ function M.handle_invoke(_, params) -- '_' for unused client param
   if not M.tools[tool_name] then
     return {
       error = {
-        code = -32601,
+        code = -32601, -- JSON-RPC Method not found
         message = "Tool not found: " .. tool_name,
       },
     }
   end
 
   local tool_data = M.tools[tool_name]
-  local success, result = pcall(tool_data.handler, input)
+  -- Tool handlers are now expected to:
+  -- 1. Raise an error (e.g., error({code=..., message=...}) or error("string"))
+  -- 2. Return (false, "error message string" or {code=..., message=...}) for pcall-style errors
+  -- 3. Return the result directly for success.
+  local pcall_results = { pcall(tool_data.handler, input) }
+  local pcall_success = pcall_results[1]
+  local handler_return_val1 = pcall_results[2]
+  local handler_return_val2 = pcall_results[3]
 
-  if not success then
-    return {
-      error = {
-        code = -32603,
-        message = "Tool execution failed: " .. (result or "unknown error"),
-      },
-    }
-  end
+  if not pcall_success then
+    -- Case 1: Handler itself raised a Lua error (e.g. error("foo") or error({...}))
+    -- handler_return_val1 contains the error object/string from the pcall
+    local err_code = M.ERROR_CODES.INTERNAL_ERROR
+    local err_msg = "Tool execution failed via error()"
+    local err_data_payload = tostring(handler_return_val1)
 
-  return {
-    result = result,
-  }
-end
-
-function M.open_file(params)
-  if not params.filePath then
-    return {
-      content = { { type = "text", text = "Error: Missing filePath parameter" } },
-      isError = true,
-    }
-  end
-
-  local file_path = vim.fn.expand(params.filePath)
-
-  if vim.fn.filereadable(file_path) == 0 then
-    return {
-      content = { { type = "text", text = "Error: File not found: " .. file_path } },
-      isError = true,
-    }
-  end
-
-  vim.cmd("edit " .. vim.fn.fnameescape(file_path))
-
-  -- TODO: Implement selection by text patterns if params.startText and params.endText are provided.
-
-  return {
-    content = { { type = "text", text = "File opened: " .. file_path } },
-    isError = false,
-  }
-end
-
-function M.get_diagnostics(_) -- '_' for unused params
-  if not vim.lsp or not vim.diagnostic or not vim.diagnostic.get then
-    return {
-      content = { { type = "text", text = "LSP or vim.diagnostic.get not available" } },
-      isError = true, -- Consider this an error or a specific state
-    }
-  end
-
-  local all_diagnostics = vim.diagnostic.get()
-
-  local formatted_diagnostics = {}
-  for _, diagnostic in ipairs(all_diagnostics) do
-    table.insert(formatted_diagnostics, {
-      file = vim.api.nvim_buf_get_name(diagnostic.bufnr),
-      line = diagnostic.lnum,
-      character = diagnostic.col,
-      severity = diagnostic.severity,
-      message = diagnostic.message,
-      source = diagnostic.source,
-    })
-  end
-
-  return {
-    content = { { type = "text", text = vim.json.encode({ diagnostics = formatted_diagnostics }) } },
-    isError = false,
-  }
-end
-
-function M.get_open_editors(_params) -- Prefix unused params with underscore
-  local editors = {}
-
-  local buffers = vim.api.nvim_list_bufs()
-
-  for _, bufnr in ipairs(buffers) do
-    -- Only include loaded, listed buffers with a file path
-    if vim.api.nvim_buf_is_loaded(bufnr) and vim.fn.buflisted(bufnr) == 1 then
-      local file_path = vim.api.nvim_buf_get_name(bufnr)
-
-      if file_path and file_path ~= "" then
-        table.insert(editors, {
-          filePath = file_path,
-          fileUrl = "file://" .. file_path,
-          isDirty = vim.api.nvim_buf_get_option(bufnr, "modified"),
-        })
-      end
+    if type(handler_return_val1) == "table" and handler_return_val1.code and handler_return_val1.message then
+      err_code = handler_return_val1.code
+      err_msg = handler_return_val1.message
+      err_data_payload = handler_return_val1.data
+    elseif type(handler_return_val1) == "string" then
+      err_msg = handler_return_val1
     end
+    return { error = { code = err_code, message = err_msg, data = err_data_payload } }
   end
 
-  return {
-    content = { { type = "text", text = vim.json.encode({ editors = editors }) } },
-    isError = false,
-  }
-end
+  -- pcall succeeded, now check the handler's actual return values
+  -- Case 2: Handler returned (false, "error message" or {error_obj})
+  if handler_return_val1 == false then
+    local err_val_from_handler = handler_return_val2 -- This is the actual error string or table
+    local err_code = M.ERROR_CODES.INTERNAL_ERROR
+    local err_msg = "Tool reported an error"
+    local err_data_payload = tostring(err_val_from_handler)
 
-function M.get_workspace_folders(_) -- '_' for unused params
-  local cwd = vim.fn.getcwd()
-
-  -- For now, just return the current working directory
-  -- TODO: Integrate with LSP workspace folders if available
-
-  local folders = {
-    {
-      name = vim.fn.fnamemodify(cwd, ":t"),
-      uri = "file://" .. cwd,
-      path = cwd,
-    },
-  }
-
-  return {
-    content = { { type = "text", text = vim.json.encode({ workspaceFolders = folders }) } },
-    isError = false,
-  }
-end
-
-function M.get_current_selection(_) -- '_' for unused params
-  -- Placeholder: delegates to selection module
-  local selection = require("claudecode.selection").get_latest_selection()
-
-  if not selection then
-    return {
-      content = { { type = "text", text = "No selection available" } },
-      isError = true, -- Or false, depending on whether "no selection" is an error or valid state
-    }
-  end
-
-  return {
-    content = { { type = "text", text = vim.json.encode(selection) } },
-    isError = false,
-  }
-end
-
-function M.get_latest_selection(_) -- '_' for unused params
-  -- Same as get_current_selection for now
-  return M.get_current_selection(_)
-end
-
-function M.check_document_dirty(params)
-  if not params.filePath then
-    return {
-      content = { { type = "text", text = "Error: Missing filePath parameter" } },
-      isError = true,
-    }
-  end
-
-  local bufnr = vim.fn.bufnr(params.filePath)
-
-  if bufnr == -1 then
-    return {
-      content = { { type = "text", text = "Error: File not open in editor: " .. params.filePath } },
-      isError = true,
-    }
-  end
-
-  local is_dirty = vim.api.nvim_buf_get_option(bufnr, "modified")
-
-  return {
-    content = { { type = "text", text = vim.json.encode({ isDirty = is_dirty }) } },
-    isError = false,
-  }
-end
-
-function M.save_document(params)
-  if not params.filePath then
-    return {
-      content = { { type = "text", text = "Error: Missing filePath parameter" } },
-      isError = true,
-    }
-  end
-
-  local bufnr = vim.fn.bufnr(params.filePath)
-
-  if bufnr == -1 then
-    return {
-      content = { { type = "text", text = "Error: File not open in editor: " .. params.filePath } },
-      isError = true,
-    }
-  end
-
-  vim.api.nvim_buf_call(bufnr, function()
-    vim.cmd("write")
-  end)
-
-  return {
-    content = { { type = "text", text = "File saved: " .. params.filePath } },
-    isError = false,
-  }
-end
-
-function M.open_diff(params)
-  local required_params = { "old_file_path", "new_file_path", "new_file_contents", "tab_name" }
-  for _, param_name in ipairs(required_params) do
-    if not params[param_name] then
-      return {
-        content = { { type = "text", text = "Error: Missing required parameter: " .. param_name } },
-        isError = true,
-      }
+    if type(err_val_from_handler) == "table" and err_val_from_handler.code and err_val_from_handler.message then
+      err_code = err_val_from_handler.code
+      err_msg = err_val_from_handler.message
+      err_data_payload = err_val_from_handler.data
+    elseif type(err_val_from_handler) == "string" then
+      err_msg = err_val_from_handler
     end
+    return { error = { code = err_code, message = err_msg, data = err_data_payload } }
   end
 
-  local diff_module = require("claudecode.diff")
-
-  local success, result_data = pcall(function()
-    return diff_module.open_diff(params.old_file_path, params.new_file_path, params.new_file_contents, params.tab_name)
-  end)
-
-  if not success then
-    -- result_data here is the error message from pcall
-    return {
-      content = { { type = "text", text = "Error opening diff: " .. tostring(result_data) } },
-      isError = true,
-    }
-  end
-
-  -- result_data from diff.open_diff is a table like { provider = "...", tab_name = "...", success = true/false, error = "..." }
-  if not result_data.success then
-    return {
-      content = {
-        { type = "text", text = "Error from diff provider: " .. (result_data.error or "Unknown diff error") },
-      },
-      isError = true,
-    }
-  end
-
-  return {
-    content = {
-      {
-        type = "text",
-        text = string.format(
-          "Diff opened using %s provider: %s (%s vs %s)",
-          result_data.provider or "unknown",
-          result_data.tab_name or "untitled",
-          params.old_file_path,
-          params.new_file_path
-        ),
-      },
-    },
-    isError = false,
-  }
+  -- Case 3: Handler succeeded and returned the result directly
+  -- handler_return_val1 is the actual result
+  return { result = handler_return_val1 }
 end
 
-function M.close_buffer_by_name(params)
-  if not params.buffer_name then
-    return {
-      content = { { type = "text", text = "Error: Missing buffer_name parameter" } },
-      isError = true,
-    }
-  end
+-- Removed M.open_file function, its logic is now in lua/claudecode/tools/impl/open_file.lua
 
-  local bufnr = vim.fn.bufnr(params.buffer_name)
+-- Removed M.get_diagnostics function, its logic is now in lua/claudecode/tools/impl/get_diagnostics.lua
 
-  if bufnr == -1 then
-    return {
-      content = { { type = "text", text = "Error: Buffer not found: " .. params.buffer_name } },
-      isError = true,
-    }
-  end
+-- Removed M.get_open_editors function, its logic is now in lua/claudecode/tools/impl/get_open_editors.lua
 
-  vim.api.nvim_buf_delete(bufnr, { force = false })
+-- Removed M.get_workspace_folders function, its logic is now in lua/claudecode/tools/impl/get_workspace_folders.lua
 
-  return {
-    content = { { type = "text", text = "Buffer closed: " .. params.buffer_name } },
-    isError = false,
-  }
-end
+-- Removed M.get_current_selection function, its logic is now in lua/claudecode/tools/impl/get_current_selection.lua
+-- Removed M.get_latest_selection function as it was redundant with get_current_selection's new implementation
+
+-- Removed M.check_document_dirty function, its logic is now in lua/claudecode/tools/impl/check_document_dirty.lua
+
+-- Removed M.save_document function, its logic is now in lua/claudecode/tools/impl/save_document.lua
+
+-- Removed M.open_diff function, its logic is now in lua/claudecode/tools/impl/open_diff.lua
+
+-- Removed M.close_buffer_by_name function, its logic is now in lua/claudecode/tools/impl/close_buffer_by_name.lua
 
 return M

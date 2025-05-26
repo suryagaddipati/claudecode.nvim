@@ -377,6 +377,49 @@ local vim = {
     return result
   end,
 
+  inspect = function(obj) -- Keep the mock inspect for controlled output
+    if type(obj) == "string" then
+      return '"' .. obj .. '"'
+    elseif type(obj) == "table" then
+      local items = {}
+      local is_array = true
+      local i = 1
+      for k, _ in pairs(obj) do
+        if k ~= i then
+          is_array = false
+          break
+        end
+        i = i + 1
+      end
+
+      if is_array then
+        for _, v_arr in ipairs(obj) do
+          table.insert(items, vim.inspect(v_arr))
+        end
+        return "{" .. table.concat(items, ", ") .. "}" -- Lua tables are 1-indexed, show as {el1, el2}
+      else -- map-like table
+        for k_map, v_map in pairs(obj) do
+          local key_str
+          if type(k_map) == "string" then
+            key_str = k_map
+          else
+            key_str = "[" .. vim.inspect(k_map) .. "]"
+          end
+          table.insert(items, key_str .. " = " .. vim.inspect(v_map))
+        end
+        return "{" .. table.concat(items, ", ") .. "}"
+      end
+    elseif type(obj) == "boolean" then
+      return tostring(obj)
+    elseif type(obj) == "number" then
+      return tostring(obj)
+    elseif obj == nil then
+      return "nil"
+    else
+      return type(obj) .. ": " .. tostring(obj) -- Fallback for other types
+    end
+  end,
+
   --- Stub for the `vim.loop` module.
   --- Provides minimal implementations for TCP and timer functionalities
   --- required by some plugin tests.
@@ -455,9 +498,9 @@ local vim = {
     levels = {
       TRACE = 0,
       DEBUG = 1,
-      INFO = 2,
+      ERROR = 2,
       WARN = 3,
-      ERROR = 4,
+      INFO = 4,
     },
     -- Provides log level constants, similar to `vim.log.levels`.
     -- The actual logging functions (trace, debug, etc.) are no-ops in this mock.

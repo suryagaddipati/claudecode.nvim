@@ -25,4 +25,3 @@ local main_module_ok, _ = pcall(require, "claudecode")
 if not main_module_ok then
   vim.notify("ClaudeCode: Failed to load main module. Plugin may not function correctly.", vim.log.levels.ERROR)
 end
-

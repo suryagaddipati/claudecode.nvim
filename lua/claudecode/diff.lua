@@ -84,7 +84,11 @@ function M._create_temp_file(content, filename)
     final_base_dir = base_dir_temp
   end
 
-  local session_id_base = vim.fn.fnamemodify(vim.fn.tempname(), ":t") .. "_" .. tostring(os.time()) .. "_" .. tostring(math.random(1000, 9999))
+  local session_id_base = vim.fn.fnamemodify(vim.fn.tempname(), ":t")
+    .. "_"
+    .. tostring(os.time())
+    .. "_"
+    .. tostring(math.random(1000, 9999))
   local session_id = session_id_base:gsub("[^A-Za-z0-9_-]", "")
   if session_id == "" then -- Fallback if all characters were problematic, ensuring a directory can be made.
     session_id = "claudecode_session"

@@ -3,6 +3,10 @@
 -- Set global variable names
 globals = {
 	"vim",
+	"expect",
+	"assert_contains",
+	"assert_not_contains",
+	"spy", -- For luassert.spy and spy.any
 }
 
 -- Ignore warnings for unused self parameters

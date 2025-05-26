@@ -4,10 +4,14 @@ require("tests.busted_setup")
 describe("Tools Module", function()
   local tools
   local mock_vim
+  local spy -- For spying on functions
 
   local function setup()
     package.loaded["claudecode.tools.init"] = nil
     package.loaded["claudecode.diff"] = nil
+    package.loaded["luassert.spy"] = nil -- Ensure spy is fresh
+
+    spy = require("luassert.spy")
 
     mock_vim = {
       fn = {
@@ -56,8 +60,8 @@ describe("Tools Module", function()
         nvim_buf_get_option = function()
           return false
         end,
-        nvim_buf_call = function(bufnr, fn)
-          fn()
+        nvim_buf_call = function(bufnr, fn_to_call) -- Renamed to avoid conflict
+          fn_to_call()
         end,
         nvim_buf_delete = function() end,
       },
@@ -78,11 +82,20 @@ describe("Tools Module", function()
       },
       json = {
         encode = function(obj)
-          return vim.inspect(obj)
+          return vim.inspect(obj) -- Use the real vim.inspect if available, or our mock
         end,
       },
       notify = function() end,
-      inspect = function(obj)
+      log = { -- Add mock for vim.log
+        levels = {
+          TRACE = 0,
+          DEBUG = 1,
+          ERROR = 2,
+          WARN = 3, -- Add other common levels for completeness if needed
+          INFO = 4,
+        },
+      },
+      inspect = function(obj) -- Keep the mock inspect for controlled output
         if type(obj) == "string" then
           return '"' .. obj .. '"'
         elseif type(obj) == "table" then
@@ -100,17 +113,20 @@ describe("Tools Module", function()
     _G.vim = mock_vim
 
     tools = require("claudecode.tools.init")
-    tools.register_all() -- Ensure all tools are registered for all test groups
-    if tools.tools.closeBufferByName then -- Explicitly expose the handler for direct test calls
-      tools.closeBufferByName = tools.tools.closeBufferByName.handler
-    end
+    -- Ensure tools are registered for testing handle_invoke
+    tools.register_all()
   end
 
   local function teardown()
     _G.vim = nil
+    package.loaded["luassert.spy"] = nil
+    spy = nil
   end
 
   local function contains(str, pattern)
+    if type(str) ~= "string" or type(pattern) ~= "string" then
+      return false
+    end
     return str:find(pattern, 1, true) ~= nil
   end
 
@@ -124,7 +140,7 @@ describe("Tools Module", function()
 
   describe("Tool Registration", function()
     it("should register all tools", function()
-      tools.register_all()
+      -- tools.register_all() is called in setup
 
       expect(tools.tools).to_be_table()
       expect(tools.tools.openFile).to_be_table()
@@ -135,361 +151,161 @@ describe("Tools Module", function()
       expect(tools.tools.getOpenEditors.handler).to_be_function()
       expect(tools.tools.openDiff).to_be_table()
       expect(tools.tools.openDiff.handler).to_be_function()
+      -- Add more checks for other registered tools as needed
     end)
 
     it("should allow registering custom tools", function()
-      local custom_tool = function()
+      local custom_tool_handler = spy.new(function()
         return "custom result"
-      end
-      tools.register("customTool", nil, custom_tool)
+      end)
+      local custom_tool_module = {
+        name = "customTool",
+        schema = nil,
+        handler = custom_tool_handler,
+      }
+      tools.register(custom_tool_module)
 
-      expect(tools.tools.customTool.handler).to_be(custom_tool)
+      expect(tools.tools.customTool.handler).to_be(custom_tool_handler)
     end)
   end)
 
-  describe("Tool Invocation Handler", function()
-    before_each(function()
-      tools.register_all()
-    end)
+  describe("Tool Invocation Handler (handle_invoke)", function()
+    it("should handle valid tool invocation and return result (e.g., getOpenEditors)", function()
+      -- The 'tools' module and its handlers were loaded in setup() when _G.vim was 'mock_vim'.
+      -- So, we need to modify the spies on the 'mock_vim' instance directly.
+      mock_vim.api.nvim_list_bufs = spy.new(function()
+        return { 1 }
+      end)
+      mock_vim.api.nvim_buf_is_loaded = spy.new(function(b)
+        return b == 1
+      end)
+      mock_vim.fn.buflisted = spy.new(function(b) -- Ensure this is on mock_vim.fn
+        if b == 1 then
+          return 1
+        else
+          return 0
+        end -- Must return number 0 or 1
+      end)
+      mock_vim.api.nvim_buf_get_name = spy.new(function(b)
+        if b == 1 then
+          return "/test/file.lua"
+        else
+          return ""
+        end
+      end)
+      mock_vim.api.nvim_buf_get_option = spy.new(function(b, opt)
+        if b == 1 and opt == "modified" then
+          return false
+        else
+          return nil
+        end
+      end)
 
-    it("should handle valid tool invocation", function()
       local params = {
         name = "getOpenEditors",
         arguments = {},
       }
+      local result_obj = tools.handle_invoke(nil, params)
 
-      local result = tools.handle_invoke(nil, params)
+      expect(result_obj.result).to_be_table("Expected .result to be a table")
+      expect(result_obj.result.editors).to_be_table("Expected .result.editors to be a table")
+      expect(#result_obj.result.editors).to_be(1)
+      expect(result_obj.result.editors[1].filePath).to_be("/test/file.lua")
+      expect(result_obj.error).to_be_nil("Expected .error to be nil for successful call")
 
-      expect(result.result).to_be_table("Expected .result to be a table")
-      expect(result.result.isError).to_be_false("Expected .isError to be false for successful call")
-      expect(result.result.content).to_be_table("Expected .result.content to be a table")
-      expect(result.result.content[1]).to_be_table("Expected .result.content[1] to be a table")
-      expect(result.result.content[1].type).to_be("text")
-      expect(result.error).to_be_nil("Expected .error to be nil for successful call")
+      assert.spy(mock_vim.api.nvim_list_bufs).was_called()
+      assert.spy(mock_vim.api.nvim_buf_is_loaded).was_called_with(1)
+      assert.spy(mock_vim.fn.buflisted).was_called_with(1)
+      assert.spy(mock_vim.api.nvim_buf_get_name).was_called_with(1)
+      assert.spy(mock_vim.api.nvim_buf_get_option).was_called_with(1, "modified")
     end)
 
-    it("should handle unknown tool invocation", function()
+    it("should handle unknown tool invocation with JSON-RPC error", function()
       local params = {
         name = "unknownTool",
         arguments = {},
       }
+      local result_obj = tools.handle_invoke(nil, params)
 
-      local result = tools.handle_invoke(nil, params)
-
-      expect(result.error).to_be_table()
-      expect(result.error.code).to_be(-32601)
-      expect(contains(result.error.message, "Tool not found")).to_be_true()
+      expect(result_obj.error).to_be_table()
+      expect(result_obj.error.code).to_be(-32601) -- Method not found
+      expect(contains(result_obj.error.message, "Tool not found: unknownTool")).to_be_true()
+      expect(result_obj.result).to_be_nil()
     end)
 
-    it("should handle tool execution errors", function()
-      tools.register("errorTool", function()
-        error("Test error")
+    it("should handle tool execution errors (structured error from handler) with JSON-RPC error", function()
+      local erroring_tool_handler = spy.new(function()
+        error({ code = -32001, message = "Specific tool error from handler", data = { detail = "some detail" } })
       end)
+      tools.register({
+        name = "errorToolStructured",
+        schema = nil,
+        handler = erroring_tool_handler,
+      })
 
-      local params = {
-        name = "errorTool",
-        arguments = {},
-      }
+      local params = { name = "errorToolStructured", arguments = {} }
+      local result_obj = tools.handle_invoke(nil, params)
 
-      local result = tools.handle_invoke(nil, params)
+      expect(result_obj.error).to_be_table()
+      expect(result_obj.error.code).to_be(-32001)
+      expect(result_obj.error.message).to_be("Specific tool error from handler")
+      expect(result_obj.error.data).to_be_table()
+      expect(result_obj.error.data.detail).to_be("some detail")
+      expect(result_obj.result).to_be_nil()
+      assert.spy(erroring_tool_handler).was_called()
+    end)
 
-      expect(result.error).to_be_table()
-      expect(result.error.code).to_be(-32603)
-      expect(contains(result.error.message, "Tool execution failed")).to_be_true()
+    it("should handle tool execution errors (simple string error from handler) with JSON-RPC error", function()
+      local erroring_tool_handler_string = spy.new(function()
+        error("Simple string error from tool handler")
+      end)
+      tools.register({
+        name = "errorToolString",
+        schema = nil,
+        handler = erroring_tool_handler_string,
+      })
+
+      local params = { name = "errorToolString", arguments = {} }
+      local result_obj = tools.handle_invoke(nil, params)
+
+      expect(result_obj.error).to_be_table()
+      expect(result_obj.error.code).to_be(-32000) -- Default server error for unhandled/string errors
+      assert_contains(result_obj.error.message, "Simple string error from tool handler") -- Message includes traceback
+      assert_contains(result_obj.error.data, "Simple string error from tool handler") -- Original error string in data
+      expect(result_obj.result).to_be_nil()
+      assert.spy(erroring_tool_handler_string).was_called()
+    end)
+
+    it("should handle tool execution errors (pcall/xpcall style error from handler) with JSON-RPC error", function()
+      local erroring_tool_handler_pcall = spy.new(function()
+        -- Simulate a tool that returns an error status and message, like from pcall
+        return false, "Pcall-style error message"
+      end)
+      tools.register({
+        name = "errorToolPcallStyle",
+        schema = nil,
+        handler = erroring_tool_handler_pcall,
+      })
+
+      local params = { name = "errorToolPcallStyle", arguments = {} }
+      local result_obj = tools.handle_invoke(nil, params)
+
+      expect(result_obj.error).to_be_table()
+      expect(result_obj.error.code).to_be(-32000) -- Default server error
+      expect(result_obj.error.message).to_be("Pcall-style error message") -- This should be exact as it's not passed through Lua's error()
+      expect(result_obj.error.data).not_to_be_nil("error.data should not be nil for pcall-style string errors")
+      expect(type(result_obj.error.data)).to_be("string") -- Check type explicitly
+      assert_contains(result_obj.error.data, "Pcall-style error message")
+      expect(result_obj.result).to_be_nil()
+      assert.spy(erroring_tool_handler_pcall).was_called()
     end)
   end)
 
-  describe("Open File Tool", function()
-    it("should open existing file", function()
-      local params = {
-        filePath = "/test/existing.lua",
-      }
-
-      mock_vim.fn.filereadable = function()
-        return 1
-      end
-
-      local result = tools.open_file(params)
-
-      expect(result.isError).to_be_false()
-      expect(result.content).to_be_table()
-      expect(result.content[1].type).to_be("text")
-      expect(contains(result.content[1].text, "File opened: /test/existing.lua")).to_be_true()
-    end)
-
-    it("should handle missing filePath parameter", function()
-      local params = {}
-
-      local result = tools.open_file(params)
-
-      expect(result.isError).to_be_true()
-      expect(result.content).to_be_table()
-      expect(result.content[1].type).to_be("text")
-      expect(contains(result.content[1].text, "Error: Missing filePath parameter")).to_be_true()
-    end)
-
-    it("should handle non-existent file", function()
-      local params = {
-        filePath = "/test/nonexistent.lua",
-      }
-
-      mock_vim.fn.filereadable = function()
-        return 0
-      end
-
-      local result = tools.open_file(params)
-
-      expect(result.isError).to_be_true()
-      expect(result.content).to_be_table()
-      expect(result.content[1].type).to_be("text")
-      expect(contains(result.content[1].text, "Error: File not found: /test/nonexistent.lua")).to_be_true()
-    end)
-  end)
-
-  describe("Get Diagnostics Tool", function()
-    it("should return diagnostics when LSP is available", function()
-      local result = tools.get_diagnostics({})
-
-      expect(result.isError).to_be_false()
-      expect(result.content[1].type).to_be("text")
-      expect(result.content[1].text).to_be_string()
-      expect(contains(result.content[1].text, "diagnostics: ")).to_be_true() -- Adjusted for vim.inspect mock
-    end)
-
-    it("should handle missing LSP", function()
-      mock_vim.lsp = nil
-
-      local result = tools.get_diagnostics({})
-
-      expect(result.isError).to_be_true()
-      expect(result.content[1].type).to_be("text")
-      expect(contains(result.content[1].text, "LSP or vim.diagnostic.get not available")).to_be_true()
-
-      -- Restore LSP for other tests, as it might have been set to nil by a previous test
-      mock_vim.lsp = {}
-    end)
-  end)
-
-  describe("Get Open Editors Tool", function()
-    it("should return list of open editors", function()
-      local result = tools.get_open_editors({})
-
-      expect(result.isError).to_be_false()
-      expect(result.content[1].type).to_be("text")
-      expect(result.content[1].text).to_be_string()
-      expect(contains(result.content[1].text, "editors:")).to_be_true() -- General check for key
-      expect(contains(result.content[1].text, '"/test/file1.lua"')).to_be_true() -- Value should now be quoted by recursive inspect
-    end)
-
-    it("should include file URLs and dirty status", function()
-      local result = tools.get_open_editors({})
-
-      expect(result.isError).to_be_false()
-      expect(result.content[1].type).to_be("text")
-      expect(result.content[1].text).to_be_string()
-      expect(contains(result.content[1].text, 'filePath: "/test/file1.lua"')).to_be_true()
-      expect(contains(result.content[1].text, 'fileUrl: "file:///test/file1.lua"')).to_be_true()
-      expect(contains(result.content[1].text, "isDirty: false")).to_be_true() -- Booleans are not quoted by the mock_vim.inspect
-    end)
-  end)
-
-  describe("Save Document Tool", function()
-    it("should save existing document", function()
-      local params = {
-        filePath = "/test/file1.lua",
-      }
-
-      mock_vim.fn.bufnr = function()
-        return 1
-      end
-
-      local result = tools.save_document(params)
-
-      expect(result.isError).to_be_false()
-      expect(result.content[1].type).to_be("text")
-      expect(contains(result.content[1].text, "File saved: /test/file1.lua")).to_be_true()
-    end)
-
-    it("should handle missing filePath parameter", function()
-      local params = {}
-
-      local result = tools.save_document(params)
-
-      expect(result.isError).to_be_true()
-      expect(result.content[1].type).to_be("text")
-      expect(contains(result.content[1].text, "Error: Missing filePath parameter")).to_be_true()
-    end)
-
-    it("should handle file not open in editor", function()
-      local params = {
-        filePath = "/test/notopen.lua",
-      }
-
-      mock_vim.fn.bufnr = function()
-        return -1
-      end
-
-      local result = tools.save_document(params)
-
-      expect(result.isError).to_be_true()
-      expect(result.content[1].type).to_be("text")
-      expect(contains(result.content[1].text, "Error: File not open in editor: /test/notopen.lua")).to_be_true()
-    end)
-  end)
-
-  describe("Check Document Dirty Tool", function()
-    it("should check if document is dirty", function()
-      local params = {
-        filePath = "/test/file1.lua",
-      }
-
-      mock_vim.fn.bufnr = function()
-        return 1
-      end
-      mock_vim.api.nvim_buf_get_option = function()
-        return true
-      end
-
-      local result = tools.check_document_dirty(params)
-
-      expect(result.isError).to_be_false()
-      expect(result.content[1].type).to_be("text")
-      expect(result.content[1].text).to_be_string()
-      expect(contains(result.content[1].text, "isDirty: true")).to_be_true() -- Adjusted for vim.inspect mock
-    end)
-
-    it("should handle missing filePath parameter", function()
-      local params = {}
-
-      local result = tools.check_document_dirty(params)
-
-      expect(result.isError).to_be_true()
-      expect(result.content[1].type).to_be("text")
-      expect(contains(result.content[1].text, "Error: Missing filePath parameter")).to_be_true()
-    end)
-  end)
-
-  describe("Open Diff Tool", function()
-    it("should validate all required parameters", function()
-      local required_params = { "old_file_path", "new_file_path", "new_file_contents", "tab_name" }
-
-      for _, missing_param in ipairs(required_params) do
-        local params = {
-          old_file_path = "/test/old.lua",
-          new_file_path = "/test/new.lua",
-          new_file_contents = "new content",
-          tab_name = "Test Diff",
-        }
-        params[missing_param] = nil
-
-        local result = tools.open_diff(params)
-
-        expect(result.isError).to_be_true()
-        expect(result.content).to_be_table()
-        expect(result.content[1].type).to_be("text")
-        expect(contains(result.content[1].text, "Error: Missing required parameter: " .. missing_param)).to_be_true()
-      end
-    end)
-
-    it("should call diff module with correct parameters", function()
-      package.loaded["claudecode.diff"] = {
-        open_diff = function(old_path, new_path, content, tab_name)
-          expect(old_path).to_be("/test/old.lua")
-          expect(new_path).to_be("/test/new.lua")
-          expect(content).to_be("new content here")
-          expect(tab_name).to_be("Test Diff")
-
-          return {
-            provider = "native",
-            tab_name = tab_name,
-            success = true,
-          }
-        end,
-      }
-
-      local params = {
-        old_file_path = "/test/old.lua",
-        new_file_path = "/test/new.lua",
-        new_file_contents = "new content here",
-        tab_name = "Test Diff",
-      }
-
-      local result = tools.open_diff(params)
-
-      expect(result.isError).to_be_false()
-      expect(result.content).to_be_table()
-      expect(result.content[1].type).to_be("text")
-      expect(contains(result.content[1].text, "Diff opened using native provider: Test Diff")).to_be_true()
-    end)
-
-    it("should handle diff module errors", function()
-      package.loaded["claudecode.diff"] = {
-        open_diff = function()
-          error("Test diff error")
-        end,
-      }
-
-      local params = {
-        old_file_path = "/test/old.lua",
-        new_file_path = "/test/new.lua",
-        new_file_contents = "new content",
-        tab_name = "Test Diff",
-      }
-
-      local result = tools.open_diff(params)
-
-      expect(result.isError).to_be_true()
-      expect(result.content).to_be_table()
-      expect(result.content[1].type).to_be("text")
-      -- The text from the tool is "Error opening diff: tests/unit/tools_spec.lua:435: Test diff error"
-      -- vim.inspect will quote this. We search for the original unquoted string.
-      expect(contains(result.content[1].text, "Error opening diff: tests/unit/tools_spec.lua:428: Test diff error")).to_be_true()
-    end)
-  end)
-
-  describe("Close Buffer By Name Tool", function()
-    it("should close existing buffer by name", function()
-      local params = {
-        buffer_name = "Test Tab", -- Parameter name changed from tab_name
-      }
-
-      mock_vim.fn.bufnr = function()
-        return 1
-      end
-
-      local result = tools.closeBufferByName(params) -- Function name changed
-
-      expect(result.isError).to_be_false()
-      expect(result.content[1].type).to_be("text")
-      expect(contains(result.content[1].text, "Buffer closed: Test Tab")).to_be_true()
-    end)
-
-    it("should handle missing buffer_name parameter", function()
-      local params = {}
-
-      local result = tools.closeBufferByName(params) -- Function name changed
-
-      expect(result.isError).to_be_true()
-      expect(result.content[1].type).to_be("text")
-      expect(contains(result.content[1].text, "Error: Missing buffer_name parameter")).to_be_true()
-    end)
-
-    it("should handle buffer not found", function()
-      local params = {
-        buffer_name = "Nonexistent Tab", -- Parameter name changed
-      }
-
-      mock_vim.fn.bufnr = function()
-        return -1
-      end
-
-      local result = tools.closeBufferByName(params) -- Function name changed
-
-      expect(result.isError).to_be_true()
-      expect(result.content[1].type).to_be("text")
-      expect(contains(result.content[1].text, "Error: Buffer not found: Nonexistent Tab")).to_be_true()
-    end)
-  end)
+  -- All individual tool describe blocks (e.g., "Open File Tool", "Get Diagnostics Tool", etc.)
+  -- were removed from this file as of the refactoring on 2025-05-26.
+  -- Their functionality is now tested in their respective spec files
+  -- under tests/unit/tools/impl/.
+  -- This file now focuses on the tool registration and the generic handle_invoke logic.
 
   teardown()
 end)
