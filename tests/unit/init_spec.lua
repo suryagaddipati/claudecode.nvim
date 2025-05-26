@@ -118,28 +118,72 @@ describe("claudecode.init", function()
       expand = function()
         return "/mock/path"
       end,
-      mode = function() return "n" end,
-      delete = function(_, _) return 0 end,
-      filereadable = function(_) return 1 end,
-      fnamemodify = function(fname, _) return fname end,
-      getcwd = function() return "/mock/cwd" end,
-      mkdir = function(_, _, _) return 1 end,
-      buflisted = function(_) return 1 end,
-      bufname = function(_) return "mockbuffer" end,
-      bufnr = function(_) return 1 end,
-      win_getid = function() return 1 end,
-      win_gotoid = function(_) return true end,
-      line = function(_) return 1 end,
-      col = function(_) return 1 end,
-      virtcol = function(_) return 1 end,
-      getpos = function(_) return {0,1,1,0} end,
-      setpos = function(_,_) return true end,
-      tempname = function() return "/tmp/mocktemp" end,
-      globpath = function(_,_) return "" end,
-      stdpath = function(_) return "/mock/stdpath" end,
-      json_encode = function(_) return "{}" end,
-      json_decode = function(_) return {} end,
-      termopen = function(_, _) return 0 end,
+      mode = function()
+        return "n"
+      end,
+      delete = function(_, _)
+        return 0
+      end,
+      filereadable = function(_)
+        return 1
+      end,
+      fnamemodify = function(fname, _)
+        return fname
+      end,
+      getcwd = function()
+        return "/mock/cwd"
+      end,
+      mkdir = function(_, _, _)
+        return 1
+      end,
+      buflisted = function(_)
+        return 1
+      end,
+      bufname = function(_)
+        return "mockbuffer"
+      end,
+      bufnr = function(_)
+        return 1
+      end,
+      win_getid = function()
+        return 1
+      end,
+      win_gotoid = function(_)
+        return true
+      end,
+      line = function(_)
+        return 1
+      end,
+      col = function(_)
+        return 1
+      end,
+      virtcol = function(_)
+        return 1
+      end,
+      getpos = function(_)
+        return { 0, 1, 1, 0 }
+      end,
+      setpos = function(_, _)
+        return true
+      end,
+      tempname = function()
+        return "/tmp/mocktemp"
+      end,
+      globpath = function(_, _)
+        return ""
+      end,
+      stdpath = function(_)
+        return "/mock/stdpath"
+      end,
+      json_encode = function(_)
+        return "{}"
+      end,
+      json_decode = function(_)
+        return {}
+      end,
+      termopen = function(_, _)
+        return 0
+      end,
     }
 
     vim.log = {

@@ -52,30 +52,76 @@ describe("Tool: get_open_editors", function()
     _G.vim.api = {} -- Keep api mock specific to this test's needs
     _G.vim.fn = { ---@type vim_fn_table
       -- Add common stubs, buflisted will be spied below
-      mode = function() return "n" end,
-      delete = function(_, _) return 0 end,
-      filereadable = function(_) return 1 end,
-      fnamemodify = function(fname, _) return fname end,
-      expand = function(s, _) return s end,
-      getcwd = function() return "/mock/cwd" end,
-      mkdir = function(_, _, _) return 1 end,
-      buflisted = function(_) return 1 end, -- Stub for type, will be spied
+      mode = function()
+        return "n"
+      end,
+      delete = function(_, _)
+        return 0
+      end,
+      filereadable = function(_)
+        return 1
+      end,
+      fnamemodify = function(fname, _)
+        return fname
+      end,
+      expand = function(s, _)
+        return s
+      end,
+      getcwd = function()
+        return "/mock/cwd"
+      end,
+      mkdir = function(_, _, _)
+        return 1
+      end,
+      buflisted = function(_)
+        return 1
+      end, -- Stub for type, will be spied
       -- buflisted will be spied
-      bufname = function(_) return "mockbuffer" end,
-      bufnr = function(_) return 1 end,
-      win_getid = function() return 1 end,
-      win_gotoid = function(_) return true end,
-      line = function(_) return 1 end,
-      col = function(_) return 1 end,
-      virtcol = function(_) return 1 end,
-      getpos = function(_) return {0,1,1,0} end,
-      setpos = function(_,_) return true end,
-      tempname = function() return "/tmp/mocktemp" end,
-      globpath = function(_,_) return "" end,
-      stdpath = function(_) return "/mock/stdpath" end,
-      json_encode = function(_) return "{}" end,
-      json_decode = function(_) return {} end,
-      termopen = function(_, _) return 0 end,
+      bufname = function(_)
+        return "mockbuffer"
+      end,
+      bufnr = function(_)
+        return 1
+      end,
+      win_getid = function()
+        return 1
+      end,
+      win_gotoid = function(_)
+        return true
+      end,
+      line = function(_)
+        return 1
+      end,
+      col = function(_)
+        return 1
+      end,
+      virtcol = function(_)
+        return 1
+      end,
+      getpos = function(_)
+        return { 0, 1, 1, 0 }
+      end,
+      setpos = function(_, _)
+        return true
+      end,
+      tempname = function()
+        return "/tmp/mocktemp"
+      end,
+      globpath = function(_, _)
+        return ""
+      end,
+      stdpath = function(_)
+        return "/mock/stdpath"
+      end,
+      json_encode = function(_)
+        return "{}"
+      end,
+      json_decode = function(_)
+        return {}
+      end,
+      termopen = function(_, _)
+        return 0
+      end,
     }
 
     _G.vim.api.nvim_list_bufs = spy.new(function()

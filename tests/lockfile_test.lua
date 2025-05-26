@@ -28,25 +28,63 @@ if not _G.vim then
       end,
       -- Add other vim.fn mocks as needed by lockfile tests
       -- For now, only adding what's explicitly used or causing major type issues
-      filereadable = function() return 1 end,
-      fnamemodify = function(fname, _) return fname end,
-      delete = function(_, _) return 0 end,
-      mode = function() return "n" end,
-      buflisted = function(_) return 0 end,
-      bufname = function(_) return "" end,
-      bufnr = function(_) return 0 end,
-      win_getid = function() return 0 end,
-      win_gotoid = function(_) return false end,
-      line = function(_) return 0 end,
-      col = function(_) return 0 end,
-      virtcol = function(_) return 0 end,
-      getpos = function(_) return {0,0,0,0} end,
-      setpos = function(_,_) return false end,
-      tempname = function() return "" end,
-      globpath = function(_,_) return "" end,
-      stdpath = function(_) return "" end,
-      json_encode = function(_) return "{}" end,
-      json_decode = function(_) return {} end,
+      filereadable = function()
+        return 1
+      end,
+      fnamemodify = function(fname, _)
+        return fname
+      end,
+      delete = function(_, _)
+        return 0
+      end,
+      mode = function()
+        return "n"
+      end,
+      buflisted = function(_)
+        return 0
+      end,
+      bufname = function(_)
+        return ""
+      end,
+      bufnr = function(_)
+        return 0
+      end,
+      win_getid = function()
+        return 0
+      end,
+      win_gotoid = function(_)
+        return false
+      end,
+      line = function(_)
+        return 0
+      end,
+      col = function(_)
+        return 0
+      end,
+      virtcol = function(_)
+        return 0
+      end,
+      getpos = function(_)
+        return { 0, 0, 0, 0 }
+      end,
+      setpos = function(_, _)
+        return false
+      end,
+      tempname = function()
+        return ""
+      end,
+      globpath = function(_, _)
+        return ""
+      end,
+      stdpath = function(_)
+        return ""
+      end,
+      json_encode = function(_)
+        return "{}"
+      end,
+      json_decode = function(_)
+        return {}
+      end,
       -- getcwd is defined later in setup, so no need to mock it here initially
       -- mkdir is defined later in setup
       -- getpid is defined later in setup
@@ -59,7 +97,9 @@ if not _G.vim then
       getpid = function()
         return 12345
       end,
-      termopen = function(_, _) return 0 end,
+      termopen = function(_, _)
+        return 0
+      end,
     },
     notify = function(_, _, _) end,
     log = {

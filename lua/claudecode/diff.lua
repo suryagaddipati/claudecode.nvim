@@ -120,12 +120,18 @@ function M._cleanup_temp_file(tmp_file)
     if vim.fs and type(vim.fs.remove) == "function" then
       local ok_file, err_file = pcall(vim.fs.remove, tmp_file)
       if not ok_file then
-        vim.notify("ClaudeCode: Error removing temp file " .. tmp_file .. ": " .. tostring(err_file), vim.log.levels.WARN)
+        vim.notify(
+          "ClaudeCode: Error removing temp file " .. tmp_file .. ": " .. tostring(err_file),
+          vim.log.levels.WARN
+        )
       end
 
       local ok_dir, err_dir = pcall(vim.fs.remove, tmp_dir)
       if not ok_dir then
-        vim.notify("ClaudeCode: Error removing temp directory " .. tmp_dir .. ": " .. tostring(err_dir), vim.log.levels.INFO)
+        vim.notify(
+          "ClaudeCode: Error removing temp directory " .. tmp_dir .. ": " .. tostring(err_dir),
+          vim.log.levels.INFO
+        )
       end
     else
       local reason = "vim.fs.remove is not a function"
@@ -133,14 +139,20 @@ function M._cleanup_temp_file(tmp_file)
         reason = "vim.fs is nil"
       end
       vim.notify(
-        "ClaudeCode: Cannot perform standard cleanup: " .. reason .. ". Affected file: " .. tmp_file ..
-        ". Please check your Neovim setup or report this issue.",
+        "ClaudeCode: Cannot perform standard cleanup: "
+          .. reason
+          .. ". Affected file: "
+          .. tmp_file
+          .. ". Please check your Neovim setup or report this issue.",
         vim.log.levels.ERROR
       )
       -- Fallback to os.remove for the file.
       local os_ok, os_err = pcall(os.remove, tmp_file)
       if not os_ok then
-         vim.notify("ClaudeCode: Fallback os.remove also failed for file " .. tmp_file .. ": " .. tostring(os_err), vim.log.levels.ERROR)
+        vim.notify(
+          "ClaudeCode: Fallback os.remove also failed for file " .. tmp_file .. ": " .. tostring(os_err),
+          vim.log.levels.ERROR
+        )
       end
     end
   end

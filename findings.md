@@ -237,14 +237,40 @@ The lock file contains a JSON object with the following structure:
 
 The extension registers various tools with the MCP server:
 
-1. **openDiff**: Open a diff view between two files
+1. **openDiff**: Open a diff view between two files and wait for user action
 
    - Parameters:
      - `old_file_path`: Path to the original file (REQUIRED)
      - `new_file_path`: Path to the new file (REQUIRED)
      - `new_file_contents`: Contents of the new file (REQUIRED)
      - `tab_name`: Name for the diff tab (REQUIRED)
-   - Returns: Information about diff acceptance or rejection
+   - Behavior: This tool is **blocking** - it opens the diff view and waits for user interaction before returning
+   - Returns: One of three possible responses based on user action:
+
+     ```json
+     // User saved the file (accepted changes)
+     {
+       "content": [
+         { "type": "text", "text": "FILE_SAVED" },
+         { "type": "text", "text": "final file contents" }
+       ]
+     }
+
+     // User closed the diff tab or explicitly rejected
+     {
+       "content": [
+         { "type": "text", "text": "DIFF_REJECTED" },
+         { "type": "text", "text": "tab_name" }
+       ]
+     }
+     ```
+
+   - Implementation Notes:
+     - Creates temporary file providers for both old and new files
+     - Monitors for tab close events, file save events, and diff acceptance/rejection
+     - Automatically closes any existing Claude Code diff tabs with the same name
+     - Uses `Promise.race()` to wait for the first of: tab closed, diff accepted, or file saved
+     - If autoSave is disabled, also waits for manual save events
 
 2. **getDiagnostics**: Get language diagnostics from VS Code
 

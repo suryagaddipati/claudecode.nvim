@@ -208,6 +208,13 @@ function M.register_handlers()
     end,
 
     ["tools/call"] = function(client, params)
+      logger.debug(
+        "server",
+        "Received tools/call. Tool: ",
+        params and params.name,
+        " Arguments: ",
+        vim.inspect(params and params.arguments)
+      )
       local result_or_error_table = tools.handle_invoke(client, params)
 
       if result_or_error_table.error then

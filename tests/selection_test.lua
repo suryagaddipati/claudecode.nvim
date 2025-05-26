@@ -119,27 +119,69 @@ if not _G.vim then
         return { 0, 0, 0, 0 }
       end,
       -- Add other vim.fn mocks as needed by selection tests
-      mode = function() return _G.vim._current_mode or "n" end,
-      delete = function(_, _) return 0 end,
-      filereadable = function(_) return 1 end,
-      fnamemodify = function(fname, _) return fname end,
-      expand = function(s, _) return s end,
-      getcwd = function() return "/mock/cwd" end,
-      mkdir = function(_, _, _) return 1 end,
-      buflisted = function(_) return 1 end,
-      bufname = function(_) return "mockbuffer" end,
-      win_getid = function() return 1 end,
-      win_gotoid = function(_) return true end,
-      line = function(_) return 1 end,
-      col = function(_) return 1 end,
-      virtcol = function(_) return 1 end,
-      setpos = function(_,_) return true end,
-      tempname = function() return "/tmp/mocktemp" end,
-      globpath = function(_,_) return "" end,
-      stdpath = function(_) return "/mock/stdpath" end,
-      json_encode = function(_) return "{}" end,
-      json_decode = function(_) return {} end,
-      termopen = function(_, _) return 0 end,
+      mode = function()
+        return _G.vim._current_mode or "n"
+      end,
+      delete = function(_, _)
+        return 0
+      end,
+      filereadable = function(_)
+        return 1
+      end,
+      fnamemodify = function(fname, _)
+        return fname
+      end,
+      expand = function(s, _)
+        return s
+      end,
+      getcwd = function()
+        return "/mock/cwd"
+      end,
+      mkdir = function(_, _, _)
+        return 1
+      end,
+      buflisted = function(_)
+        return 1
+      end,
+      bufname = function(_)
+        return "mockbuffer"
+      end,
+      win_getid = function()
+        return 1
+      end,
+      win_gotoid = function(_)
+        return true
+      end,
+      line = function(_)
+        return 1
+      end,
+      col = function(_)
+        return 1
+      end,
+      virtcol = function(_)
+        return 1
+      end,
+      setpos = function(_, _)
+        return true
+      end,
+      tempname = function()
+        return "/tmp/mocktemp"
+      end,
+      globpath = function(_, _)
+        return ""
+      end,
+      stdpath = function(_)
+        return "/mock/stdpath"
+      end,
+      json_encode = function(_)
+        return "{}"
+      end,
+      json_decode = function(_)
+        return {}
+      end,
+      termopen = function(_, _)
+        return 0
+      end,
     },
     defer_fn = function(fn, _timeout) -- Prefix unused param with underscore
       -- For testing, we'll execute immediately
