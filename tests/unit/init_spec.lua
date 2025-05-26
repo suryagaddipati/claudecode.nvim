@@ -109,15 +109,37 @@ describe("claudecode.init", function()
       return result
     end
 
-    vim.notify = function() end
+    vim.notify = spy.new(function() end)
 
-    vim.fn = {
+    vim.fn = { ---@type vim_fn_table
       getpid = function()
         return 123
       end,
       expand = function()
         return "/mock/path"
       end,
+      mode = function() return "n" end,
+      delete = function(_, _) return 0 end,
+      filereadable = function(_) return 1 end,
+      fnamemodify = function(fname, _) return fname end,
+      getcwd = function() return "/mock/cwd" end,
+      mkdir = function(_, _, _) return 1 end,
+      buflisted = function(_) return 1 end,
+      bufname = function(_) return "mockbuffer" end,
+      bufnr = function(_) return 1 end,
+      win_getid = function() return 1 end,
+      win_gotoid = function(_) return true end,
+      line = function(_) return 1 end,
+      col = function(_) return 1 end,
+      virtcol = function(_) return 1 end,
+      getpos = function(_) return {0,1,1,0} end,
+      setpos = function(_,_) return true end,
+      tempname = function() return "/tmp/mocktemp" end,
+      globpath = function(_,_) return "" end,
+      stdpath = function(_) return "/mock/stdpath" end,
+      json_encode = function(_) return "{}" end,
+      json_decode = function(_) return {} end,
+      termopen = function(_, _) return 0 end,
     }
 
     vim.log = {
@@ -135,7 +157,7 @@ describe("claudecode.init", function()
     mock_lockfile.remove = SpyObject.new(mock_lockfile.remove)
 
     _G.require = function(mod)
-      if mod == "claudecode.server" then
+      if mod == "claudecode.server.init" then
         return mock_server
       elseif mod == "claudecode.lockfile" then
         return mock_lockfile
@@ -177,8 +199,17 @@ describe("claudecode.init", function()
       claudecode.setup()
       claudecode.start()
 
-      local opts = vim.api.nvim_create_autocmd.calls[1].vals[2]
-      local callback_fn = opts.callback
+      local callback_fn = nil
+      for _, call in ipairs(vim.api.nvim_create_autocmd.calls) do
+        if call.vals[1] == "VimLeavePre" then
+          -- The mock for nvim_create_augroup returns 1, and this is passed as the group.
+          if call.vals[2] and call.vals[2].group == 1 then
+            callback_fn = call.vals[2].callback
+            break
+          end
+        end
+      end
+      assert(callback_fn, "Callback for VimLeavePre with ClaudeCodeShutdown group not found")
 
       mock_server.stop.calls = {}
       mock_lockfile.remove.calls = {}

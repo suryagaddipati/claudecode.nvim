@@ -5,10 +5,51 @@ local real_vim = _G.vim
 if not _G.vim then
   -- Create a basic vim mock
   _G.vim = { ---@type vim_global_api
-    fn = {
+    schedule_wrap = function(fn)
+      return fn
+    end,
+    deepcopy = function(t) -- Basic deepcopy for testing
+      local copy = {}
+      for k, v in pairs(t) do
+        if type(v) == "table" then
+          copy[k] = _G.vim.deepcopy(v)
+        else
+          copy[k] = v
+        end
+      end
+      return copy
+    end,
+    cmd = function() end, ---@type fun(command: string):nil
+    api = {}, ---@type table
+    fs = { remove = function() end }, ---@type vim_fs_module
+    fn = { ---@type vim_fn_table
       expand = function(path)
-        return path:gsub("~", "/home/user")
+        return select(1, path:gsub("~", "/home/user"))
       end,
+      -- Add other vim.fn mocks as needed by lockfile tests
+      -- For now, only adding what's explicitly used or causing major type issues
+      filereadable = function() return 1 end,
+      fnamemodify = function(fname, _) return fname end,
+      delete = function(_, _) return 0 end,
+      mode = function() return "n" end,
+      buflisted = function(_) return 0 end,
+      bufname = function(_) return "" end,
+      bufnr = function(_) return 0 end,
+      win_getid = function() return 0 end,
+      win_gotoid = function(_) return false end,
+      line = function(_) return 0 end,
+      col = function(_) return 0 end,
+      virtcol = function(_) return 0 end,
+      getpos = function(_) return {0,0,0,0} end,
+      setpos = function(_,_) return false end,
+      tempname = function() return "" end,
+      globpath = function(_,_) return "" end,
+      stdpath = function(_) return "" end,
+      json_encode = function(_) return "{}" end,
+      json_decode = function(_) return {} end,
+      -- getcwd is defined later in setup, so no need to mock it here initially
+      -- mkdir is defined later in setup
+      -- getpid is defined later in setup
       getcwd = function()
         return "/mock/cwd"
       end,
@@ -18,9 +59,7 @@ if not _G.vim then
       getpid = function()
         return 12345
       end,
-      filereadable = function()
-        return 1
-      end,
+      termopen = function(_, _) return 0 end,
     },
     notify = function(_, _, _) end,
     log = {
@@ -39,7 +78,10 @@ if not _G.vim then
       end,
     },
     lsp = {}, -- Existing lsp mock part
-    o = {}, ---@type vim_options_table
+    o = { ---@type vim_options_table
+      columns = 80,
+      lines = 24,
+    },
     bo = setmetatable({}, { -- Mock for vim.bo and vim.bo[bufnr]
       __index = function(t, k)
         if type(k) == "number" then

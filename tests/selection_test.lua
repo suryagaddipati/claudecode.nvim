@@ -1,5 +1,8 @@
 if not _G.vim then
-  _G.vim = {
+  _G.vim = { ---@type vim_global_api
+    schedule_wrap = function(fn)
+      return fn
+    end,
     _buffers = {},
     _windows = {},
     _commands = {},
@@ -96,8 +99,9 @@ if not _G.vim then
         _G.vim._last_error = msg
       end,
     },
-
-    fn = {
+    cmd = function() end, ---@type fun(command: string):nil
+    fs = { remove = function() end }, ---@type vim_fs_module
+    fn = { ---@type vim_fn_table
       bufnr = function(name)
         for bufnr, buf in pairs(_G.vim._buffers) do
           if buf.name == name then
@@ -106,7 +110,6 @@ if not _G.vim then
         end
         return -1
       end,
-
       getpos = function(mark)
         if mark == "'<" then
           return { 0, 1, 1, 0 }
@@ -115,8 +118,29 @@ if not _G.vim then
         end
         return { 0, 0, 0, 0 }
       end,
+      -- Add other vim.fn mocks as needed by selection tests
+      mode = function() return _G.vim._current_mode or "n" end,
+      delete = function(_, _) return 0 end,
+      filereadable = function(_) return 1 end,
+      fnamemodify = function(fname, _) return fname end,
+      expand = function(s, _) return s end,
+      getcwd = function() return "/mock/cwd" end,
+      mkdir = function(_, _, _) return 1 end,
+      buflisted = function(_) return 1 end,
+      bufname = function(_) return "mockbuffer" end,
+      win_getid = function() return 1 end,
+      win_gotoid = function(_) return true end,
+      line = function(_) return 1 end,
+      col = function(_) return 1 end,
+      virtcol = function(_) return 1 end,
+      setpos = function(_,_) return true end,
+      tempname = function() return "/tmp/mocktemp" end,
+      globpath = function(_,_) return "" end,
+      stdpath = function(_) return "/mock/stdpath" end,
+      json_encode = function(_) return "{}" end,
+      json_decode = function(_) return {} end,
+      termopen = function(_, _) return 0 end,
     },
-
     defer_fn = function(fn, _timeout) -- Prefix unused param with underscore
       -- For testing, we'll execute immediately
       fn()
@@ -128,7 +152,7 @@ if not _G.vim then
       end,
     },
 
-    test = {
+    test = { ---@type vim_test_utils
       set_mode = function(mode)
         _G.vim._current_mode = mode
       end,
@@ -170,7 +194,10 @@ if not _G.vim then
         TRACE = 5,
       },
     },
-    o = {}, -- Mock for vim.o
+    o = { ---@type vim_options_table
+      columns = 80,
+      lines = 24,
+    }, -- Mock for vim.o
     bo = setmetatable({}, { -- Mock for vim.bo and vim.bo[bufnr]
       __index = function(t, k)
         if type(k) == "number" then

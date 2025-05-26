@@ -2,39 +2,68 @@
 require("tests.busted_setup")
 
 describe("MCP Tools Integration", function()
-  local server
-  local tools
+  -- Clear module cache at the start of the describe block
+  package.loaded["claudecode.server.init"] = nil
+  package.loaded["claudecode.tools.init"] = nil
+  package.loaded["claudecode.diff"] = nil
+
+  -- Mock the selection module before other modules might require it
+  package.loaded["claudecode.selection"] = {
+    get_latest_selection = function()
+      return {
+        file_path = "/test/selection.lua",
+        content = "test selection content",
+        start_line = 1,
+        end_line = 1,
+      }
+    end,
+  }
+
+  -- Ensure _G.vim is initialized by busted_setup (can be asserted here or assumed)
+  assert(_G.vim, "Global vim mock not initialized by busted_setup.lua")
+  assert(_G.vim.fn, "Global vim.fn mock not initialized")
+  assert(_G.vim.api, "Global vim.api mock not initialized")
+
+  -- Load modules (these will now use the _G.vim provided by busted_setup and fresh caches)
+  local server = require("claudecode.server.init")
+  local tools = require("claudecode.tools.init")
 
   local original_vim_functions = {} -- To store original functions if we override them
 
-  local function setup()
-    -- Clear module cache
-    package.loaded["claudecode.server.init"] = nil
-    package.loaded["claudecode.tools.init"] = nil
-    package.loaded["claudecode.diff"] = nil
+  ---@class MCPToolInputSchemaProperty
+  ---@field type string
+  ---@field description string
+  ---@field default any?
 
-    -- Mock the selection module to avoid LuaRocks issues
-    package.loaded["claudecode.selection"] = {
-      get_latest_selection = function()
-        return {
-          file_path = "/test/selection.lua",
-          content = "test selection content",
-          start_line = 1,
-          end_line = 1,
-        }
-      end,
-    }
+  ---@class MCPToolInputSchema
+  ---@field type string
+  ---@field properties table<string, MCPToolInputSchemaProperty>
+  ---@field required string[]?
 
-    -- Ensure _G.vim is initialized by busted_setup
-    assert(_G.vim, "Global vim mock not initialized by busted_setup.lua")
-    assert(_G.vim.fn, "Global vim.fn mock not initialized")
-    assert(_G.vim.api, "Global vim.api mock not initialized")
+  ---@class MCPToolDefinition
+  ---@field name string
+  ---@field description string
+  ---@field inputSchema MCPToolInputSchema
+  ---@field outputSchema table? -- Simplified for now
 
-    -- Store original functions that this test might override and apply specific mocks
-    -- Load modules (these will now use the _G.vim provided by busted_setup)
-    server = require("claudecode.server.init")
-    tools = require("claudecode.tools.init")
-  end
+  ---@class MCPResultContentItem
+  ---@field type string
+  ---@field text string?
+  ---@field language string?
+  ---@field source string? -- For images, etc.
+
+  ---@class MCPToolResult
+  ---@field content MCPResultContentItem[]?
+  ---@field isError boolean?
+  ---@field error table? -- Contains code, message, data (MCPErrorData structure)
+
+  ---@class MCPErrorData
+  ---@field code number
+  ---@field message string
+  ---@field data any?
+
+  -- The setup() function's work is now done above.
+  -- local function setup() ... end -- Removed
 
   local function teardown()
     -- Restore any original vim functions that were overridden in setup()
@@ -54,7 +83,7 @@ describe("MCP Tools Integration", function()
     -- unless busted_setup doesn't restore it between spec files.
   end
 
-  setup()
+  -- setup() -- Call removed as setup work is done at the top of describe
 
   describe("Tools List Handler", function()
     it("should return complete tool definitions", function()
@@ -78,6 +107,7 @@ describe("MCP Tools Integration", function()
       end
 
       expect(openDiff_tool).not_to_be_nil()
+      ---@cast openDiff_tool MCPToolDefinition
       expect(type(openDiff_tool.description)).to_be("string")
       expect(openDiff_tool.description:find("diff view")).to_be_truthy()
       expect(openDiff_tool.inputSchema).to_be_table()
@@ -91,18 +121,20 @@ describe("MCP Tools Integration", function()
       local has_new_file_contents = false
       local has_tab_name = false
 
-      for _, param in ipairs(required) do
-        if param == "old_file_path" then
-          has_old_file_path = true
-        end
-        if param == "new_file_path" then
-          has_new_file_path = true
-        end
-        if param == "new_file_contents" then
-          has_new_file_contents = true
-        end
-        if param == "tab_name" then
-          has_tab_name = true
+      if required then
+        for _, param in ipairs(required) do
+          if param == "old_file_path" then
+            has_old_file_path = true
+          end
+          if param == "new_file_path" then
+            has_new_file_path = true
+          end
+          if param == "new_file_contents" then
+            has_new_file_contents = true
+          end
+          if param == "tab_name" then
+            has_tab_name = true
+          end
         end
       end
 
@@ -281,6 +313,7 @@ describe("MCP Tools Integration", function()
       local result, error_data = handler(nil, params)
 
       expect(result).to_be_table()
+      ---@cast result MCPToolResult
       expect(error_data).to_be_nil()
       expect(result.content).to_be_table()
       expect(result.content[1].type).to_be("text")
@@ -361,6 +394,7 @@ describe("MCP Tools Integration", function()
 
       expect(result).to_be_nil()
       expect(error_data).to_be_table()
+      ---@cast error_data MCPErrorData
       expect(error_data.code).to_be(-32601)
       expect(type(error_data.message)).to_be("string")
       expect(error_data.message:find("Tool not found")).to_be_truthy()

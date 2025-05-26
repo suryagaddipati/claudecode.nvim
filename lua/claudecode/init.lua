@@ -36,6 +36,9 @@ M.version = {
 --- @field terminal_cmd string|nil Custom terminal command to use when launching Claude.
 --- @field log_level "trace"|"debug"|"info"|"warn"|"error" Log level.
 --- @field track_selection boolean Enable sending selection updates to Claude.
+--- @field visual_demotion_delay_ms number Milliseconds to wait before demoting a visual selection.
+--- @field diff_provider "auto"|"diffview"|"native" The diff provider to use.
+--- @field diff_opts { auto_close_on_accept: boolean, show_diff_stats: boolean, vertical_split: boolean, open_in_current_tab: boolean } Options for the diff provider.
 
 --- @type ClaudeCode.Config
 local default_config = {
@@ -44,6 +47,14 @@ local default_config = {
   terminal_cmd = nil,
   log_level = "info",
   track_selection = true,
+  visual_demotion_delay_ms = 200,
+  diff_provider = "auto",
+  diff_opts = {
+    auto_close_on_accept = true,
+    show_diff_stats = true,
+    vertical_split = true,
+    open_in_current_tab = false,
+  },
 }
 
 --- @class ClaudeCode.State
@@ -137,7 +148,7 @@ function M.start(show_startup_notification)
     return false, "Already running"
   end
 
-  local server = require("claudecode.server")
+  local server = require("claudecode.server.init")
   local success, result = server.start(M.state.config)
 
   if not success then
@@ -162,7 +173,7 @@ function M.start(show_startup_notification)
 
   if M.state.config.track_selection then
     local selection = require("claudecode.selection")
-    selection.enable(server, M.state.config.visual_demotion_delay_ms)
+    selection.enable(M.state.server, M.state.config.visual_demotion_delay_ms)
   end
 
   if show_startup_notification then
@@ -245,7 +256,7 @@ function M._create_commands()
     logger.debug(
       "command",
       "ClaudeCodeSend (new logic) invoked. Mode: "
-        .. vim.fn.mode(1)
+        .. vim.fn.mode(true)
         .. ", Neovim's reported range: "
         .. tostring(opts and opts.range)
     )

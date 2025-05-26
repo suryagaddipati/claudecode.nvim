@@ -1,6 +1,9 @@
 -- Create minimal vim mock if it doesn't exist
 if not _G.vim then
-  _G.vim = {
+  _G.vim = { ---@type vim_global_api
+    schedule_wrap = function(fn)
+      return fn
+    end,
     deepcopy = function(t)
       local copy = {}
       for k, v in pairs(t) do
@@ -102,7 +105,10 @@ if not _G.vim then
         TRACE = 5,
       },
     },
-    o = {},
+    o = { ---@type vim_options_table
+      columns = 80,
+      lines = 24,
+    },
     bo = setmetatable({}, {
       __index = function(t, k)
         if type(k) == "number" then
@@ -123,6 +129,34 @@ if not _G.vim then
     empty_dict = function()
       return {}
     end,
+    cmd = function() end, ---@type fun(command: string):nil
+    api = {}, ---@type table
+    fn = { ---@type vim_fn_table
+      mode = function() return "n" end,
+      delete = function(_, _) return 0 end,
+      filereadable = function(_) return 1 end,
+      fnamemodify = function(fname, _) return fname end,
+      expand = function(s, _) return s end,
+      getcwd = function() return "/mock/cwd" end,
+      mkdir = function(_, _, _) return 1 end,
+      buflisted = function(_) return 1 end,
+      bufname = function(_) return "mockbuffer" end,
+      bufnr = function(_) return 1 end,
+      win_getid = function() return 1 end,
+      win_gotoid = function(_) return true end,
+      line = function(_) return 1 end,
+      col = function(_) return 1 end,
+      virtcol = function(_) return 1 end,
+      getpos = function(_) return {0,1,1,0} end,
+      setpos = function(_,_) return true end,
+      tempname = function() return "/tmp/mocktemp" end,
+      globpath = function(_,_) return "" end,
+      termopen = function(_, _) return 0 end,
+      stdpath = function(_) return "/mock/stdpath" end,
+      json_encode = function(_) return "{}" end,
+      json_decode = function(_) return {} end,
+    },
+    fs = { remove = function() end }, ---@type vim_fs_module
   }
 end
 
@@ -131,9 +165,9 @@ describe("Server module", function()
 
   setup(function()
     -- Reset the module
-    package.loaded["claudecode.server"] = nil
+    package.loaded["claudecode.server.init"] = nil -- Also update package.loaded key
 
-    server = require("claudecode.server")
+    server = require("claudecode.server.init")
   end)
 
   teardown(function()

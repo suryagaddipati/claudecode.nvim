@@ -201,23 +201,29 @@ describe("Tools Module", function()
         end
       end)
 
+      -- Re-register the specific tool to ensure its handler picks up the new spies
+      package.loaded["claudecode.tools.get_open_editors"] = nil -- Clear cache for the sub-tool
+      tools.register(require("claudecode.tools.get_open_editors"))
+
       local params = {
         name = "getOpenEditors",
         arguments = {},
       }
       local result_obj = tools.handle_invoke(nil, params)
 
-      expect(result_obj.result).to_be_table("Expected .result to be a table")
-      expect(result_obj.result.editors).to_be_table("Expected .result.editors to be a table")
+      expect(result_obj.result).to_be_table() -- "Expected .result to be a table"
+      expect(result_obj.result.editors).to_be_table() -- "Expected .result.editors to be a table"
       expect(#result_obj.result.editors).to_be(1)
       expect(result_obj.result.editors[1].filePath).to_be("/test/file.lua")
-      expect(result_obj.error).to_be_nil("Expected .error to be nil for successful call")
+      expect(result_obj.error).to_be_nil() -- "Expected .error to be nil for successful call"
 
-      assert.spy(mock_vim.api.nvim_list_bufs).was_called()
-      assert.spy(mock_vim.api.nvim_buf_is_loaded).was_called_with(1)
-      assert.spy(mock_vim.fn.buflisted).was_called_with(1)
-      assert.spy(mock_vim.api.nvim_buf_get_name).was_called_with(1)
-      assert.spy(mock_vim.api.nvim_buf_get_option).was_called_with(1, "modified")
+      expect(mock_vim.api.nvim_list_bufs.calls).to_be_table() -- Check if .calls table exists
+      expect(#mock_vim.api.nvim_list_bufs.calls > 0).to_be_true() -- Then, check if called
+      expect(mock_vim.api.nvim_buf_is_loaded.calls[1].vals[1]).to_be(1) -- Check first arg of first call
+      expect(mock_vim.fn.buflisted.calls[1].vals[1]).to_be(1) -- Check first arg of first call
+      expect(mock_vim.api.nvim_buf_get_name.calls[1].vals[1]).to_be(1) -- Check first arg of first call
+      expect(mock_vim.api.nvim_buf_get_option.calls[1].vals[1]).to_be(1) -- Check first arg of first call
+      expect(mock_vim.api.nvim_buf_get_option.calls[1].vals[2]).to_be("modified") -- Check second arg of first call
     end)
 
     it("should handle unknown tool invocation with JSON-RPC error", function()
@@ -252,7 +258,8 @@ describe("Tools Module", function()
       expect(result_obj.error.data).to_be_table()
       expect(result_obj.error.data.detail).to_be("some detail")
       expect(result_obj.result).to_be_nil()
-      assert.spy(erroring_tool_handler).was_called()
+      expect(erroring_tool_handler.calls).to_be_table()
+      expect(#erroring_tool_handler.calls > 0).to_be_true()
     end)
 
     it("should handle tool execution errors (simple string error from handler) with JSON-RPC error", function()
@@ -273,7 +280,8 @@ describe("Tools Module", function()
       assert_contains(result_obj.error.message, "Simple string error from tool handler") -- Message includes traceback
       assert_contains(result_obj.error.data, "Simple string error from tool handler") -- Original error string in data
       expect(result_obj.result).to_be_nil()
-      assert.spy(erroring_tool_handler_string).was_called()
+      expect(erroring_tool_handler_string.calls).to_be_table()
+      expect(#erroring_tool_handler_string.calls > 0).to_be_true()
     end)
 
     it("should handle tool execution errors (pcall/xpcall style error from handler) with JSON-RPC error", function()
@@ -293,11 +301,12 @@ describe("Tools Module", function()
       expect(result_obj.error).to_be_table()
       expect(result_obj.error.code).to_be(-32000) -- Default server error
       expect(result_obj.error.message).to_be("Pcall-style error message") -- This should be exact as it's not passed through Lua's error()
-      expect(result_obj.error.data).not_to_be_nil("error.data should not be nil for pcall-style string errors")
+      expect(result_obj.error.data).not_to_be_nil() -- "error.data should not be nil for pcall-style string errors"
       expect(type(result_obj.error.data)).to_be("string") -- Check type explicitly
       assert_contains(result_obj.error.data, "Pcall-style error message")
       expect(result_obj.result).to_be_nil()
-      assert.spy(erroring_tool_handler_pcall).was_called()
+      expect(erroring_tool_handler_pcall.calls).to_be_table()
+      expect(#erroring_tool_handler_pcall.calls > 0).to_be_true()
     end)
   end)
 

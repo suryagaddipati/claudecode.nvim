@@ -6,6 +6,7 @@
 ---@brief ]]
 
 local M = {}
+local tools = require("claudecode.tools.init")
 
 --- Mock server state
 M.state = {
@@ -91,7 +92,6 @@ function M.register_handlers()
 
     ["mcp.tool.invoke"] = function(client, params)
       -- Handle tool invocation by dispatching to tools implementation
-      local tools = require("claudecode.tools")
       return tools.handle_invoke(client, params)
     end,
   }

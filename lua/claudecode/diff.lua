@@ -75,7 +75,7 @@ function M._create_temp_file(content, filename)
   if mkdir_ok_cache then
     final_base_dir = base_dir_cache
   else
-    local base_dir_temp = vim.fn.stdpath("temp") .. "/claudecode_diffs"
+    local base_dir_temp = vim.fn.stdpath("cache") .. "/claudecode_diffs_fallback"
     local mkdir_ok_temp, mkdir_err_temp = pcall(vim.fn.mkdir, base_dir_temp, "p")
     if not mkdir_ok_temp then
       local err_to_report = mkdir_err_temp or mkdir_err_cache or "unknown error creating base temp dir"
@@ -117,8 +117,32 @@ end
 function M._cleanup_temp_file(tmp_file)
   if tmp_file and vim.fn.filereadable(tmp_file) == 1 then
     local tmp_dir = vim.fn.fnamemodify(tmp_file, ":h")
-    vim.fn.delete(tmp_file)
-    vim.fn.delete(tmp_dir, "d")
+    if vim.fs and type(vim.fs.remove) == "function" then
+      local ok_file, err_file = pcall(vim.fs.remove, tmp_file)
+      if not ok_file then
+        vim.notify("ClaudeCode: Error removing temp file " .. tmp_file .. ": " .. tostring(err_file), vim.log.levels.WARN)
+      end
+
+      local ok_dir, err_dir = pcall(vim.fs.remove, tmp_dir)
+      if not ok_dir then
+        vim.notify("ClaudeCode: Error removing temp directory " .. tmp_dir .. ": " .. tostring(err_dir), vim.log.levels.INFO)
+      end
+    else
+      local reason = "vim.fs.remove is not a function"
+      if not vim.fs then
+        reason = "vim.fs is nil"
+      end
+      vim.notify(
+        "ClaudeCode: Cannot perform standard cleanup: " .. reason .. ". Affected file: " .. tmp_file ..
+        ". Please check your Neovim setup or report this issue.",
+        vim.log.levels.ERROR
+      )
+      -- Fallback to os.remove for the file.
+      local os_ok, os_err = pcall(os.remove, tmp_file)
+      if not os_ok then
+         vim.notify("ClaudeCode: Fallback os.remove also failed for file " .. tmp_file .. ": " .. tostring(os_err), vim.log.levels.ERROR)
+      end
+    end
   end
 end
 

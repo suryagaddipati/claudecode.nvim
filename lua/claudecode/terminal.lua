@@ -14,7 +14,7 @@ if not snacks_available then
   )
 end
 
-local claudecode_server_module = require("claudecode.server")
+local claudecode_server_module = require("claudecode.server.init")
 
 local term_module_config = {
   split_side = "right",
