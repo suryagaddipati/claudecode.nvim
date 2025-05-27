@@ -28,16 +28,18 @@ local schema = {
   },
 }
 
---- Handles the openDiff tool invocation.
--- Opens a diff view comparing old file content with new file content.
+--- Handles the openDiff tool invocation with MCP compliance.
+-- Opens a diff view and blocks until user interaction (save/close).
+-- Returns MCP-compliant response with content array format.
 -- @param params table The input parameters for the tool.
 -- @field params.old_file_path string Path to the old file.
 -- @field params.new_file_path string Path for the new file (for naming).
 -- @field params.new_file_contents string Contents of the new file version.
 -- @field params.tab_name string Name for the diff tab/view.
--- @return table A result message indicating success and diff provider details.
+-- @return table MCP-compliant response with content array.
 -- @error table A table with code, message, and data for JSON-RPC error if failed.
 local function handler(params)
+  -- Validate required parameters
   local required_params = { "old_file_path", "new_file_path", "new_file_contents", "tab_name" }
   for _, param_name in ipairs(required_params) do
     if not params[param_name] then
@@ -49,48 +51,50 @@ local function handler(params)
     end
   end
 
+  -- Ensure we're running in a coroutine context for blocking operation
+  local co = coroutine.running()
+  if not co then
+    error({
+      code = -32000,
+      message = "Internal server error",
+      data = "openDiff must run in coroutine context",
+    })
+  end
+
   local diff_module_ok, diff_module = pcall(require, "claudecode.diff")
   if not diff_module_ok then
     error({ code = -32000, message = "Internal server error", data = "Failed to load diff module" })
   end
 
-  local success, result_data =
-    pcall(diff_module.open_diff, params.old_file_path, params.new_file_path, params.new_file_contents, params.tab_name)
+  -- Use the new blocking diff operation
+  local success, result = pcall(
+    diff_module.open_diff_blocking,
+    params.old_file_path,
+    params.new_file_path,
+    params.new_file_contents,
+    params.tab_name
+  )
 
   if not success then
-    -- result_data here is the error message from pcall on diff_module.open_diff
-    error({
-      code = -32000, -- Generic tool error
-      message = "Error opening diff",
-      data = tostring(result_data),
-    })
+    -- Check if this is already a structured error
+    if type(result) == "table" and result.code then
+      error(result)
+    else
+      error({
+        code = -32000, -- Generic tool error
+        message = "Error opening blocking diff",
+        data = tostring(result),
+      })
+    end
   end
 
-  -- result_data from diff.open_diff is expected to be a table like
-  -- { provider = "...", tab_name = "...", success = true/false, error = "..." }
-  if not result_data.success then
-    error({
-      code = -32000, -- Generic tool error
-      message = "Error from diff provider",
-      data = result_data.error or "Unknown diff error",
-    })
-  end
-
-  return {
-    message = string.format(
-      "Diff opened using %s provider: %s (%s vs %s)",
-      result_data.provider or "unknown",
-      result_data.tab_name or "untitled",
-      params.old_file_path,
-      params.new_file_path
-    ),
-    provider = result_data.provider,
-    tab_name = result_data.tab_name,
-  }
+  -- result should already be MCP-compliant with content array format
+  return result
 end
 
 return {
   name = "openDiff",
   schema = schema,
   handler = handler,
+  requires_coroutine = true, -- This tool needs coroutine context for blocking behavior
 }

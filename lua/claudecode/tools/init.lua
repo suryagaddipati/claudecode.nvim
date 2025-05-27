@@ -50,7 +50,7 @@ function M.register_all()
   -- M.register("getLatestSelection", nil, M.get_latest_selection) -- This tool is effectively covered by getCurrentSelection
   M.register(require("claudecode.tools.check_document_dirty"))
   M.register(require("claudecode.tools.save_document"))
-  M.register(require("claudecode.tools.close_buffer_by_name"))
+  M.register(require("claudecode.tools.close_tab"))
 end
 
 function M.register(tool_module)
@@ -72,10 +72,11 @@ function M.register(tool_module)
   M.tools[tool_module.name] = {
     handler = tool_module.handler,
     schema = tool_module.schema, -- Will be nil if not defined in the module
+    requires_coroutine = tool_module.requires_coroutine, -- Will be nil if not defined in the module
   }
 end
 
-function M.handle_invoke(_, params) -- '_' for unused client param
+function M.handle_invoke(client, params) -- client needed for blocking tools
   local tool_name = params.name
   local input = params.arguments
 
@@ -93,7 +94,40 @@ function M.handle_invoke(_, params) -- '_' for unused client param
   -- 1. Raise an error (e.g., error({code=..., message=...}) or error("string"))
   -- 2. Return (false, "error message string" or {code=..., message=...}) for pcall-style errors
   -- 3. Return the result directly for success.
-  local pcall_results = { pcall(tool_data.handler, input) }
+  -- Check if this tool requires coroutine context for blocking behavior
+  local pcall_results
+  if tool_data.requires_coroutine then
+    -- Wrap in coroutine for blocking behavior
+    require("claudecode.logger").debug("tools", "Wrapping " .. tool_name .. " in coroutine for blocking behavior")
+    local co = coroutine.create(function()
+      return tool_data.handler(input)
+    end)
+
+    require("claudecode.logger").debug("tools", "About to resume coroutine for " .. tool_name)
+    local success, result = coroutine.resume(co)
+    require("claudecode.logger").debug(
+      "tools",
+      "Coroutine resume returned - success:",
+      success,
+      "status:",
+      coroutine.status(co)
+    )
+
+    if coroutine.status(co) == "suspended" then
+      require("claudecode.logger").debug("tools", "Coroutine is suspended - tool is blocking, will respond later")
+      -- The coroutine yielded, which means the tool is blocking
+      -- Return a special marker to indicate this is a deferred response
+      return { _deferred = true, coroutine = co, client = client, params = params }
+    end
+
+    require("claudecode.logger").debug(
+      "tools",
+      "Coroutine completed for " .. tool_name .. ", success: " .. tostring(success)
+    )
+    pcall_results = { success, result }
+  else
+    pcall_results = { pcall(tool_data.handler, input) }
+  end
   local pcall_success = pcall_results[1]
   local handler_return_val1 = pcall_results[2]
   local handler_return_val2 = pcall_results[3]

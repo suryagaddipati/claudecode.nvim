@@ -42,10 +42,16 @@ The plugin follows a modular architecture with these main components:
 
 4. **Diff Integration** (`lua/claudecode/diff.lua`)
 
+   - **MCP-compliant blocking diff operations** for Claude Code integration
    - Native Neovim diff support with configurable options
+   - **Scratch buffer system** replacing temporary files for enhanced security
+   - **Coroutine-based blocking** that waits for user interaction (save/close)
+   - **Event monitoring system** with autocmds for save/close/reject detection
+   - **Comprehensive resource cleanup** with automatic state management
+   - **State management** for concurrent diff operations with unique identifiers
    - Current-tab mode (default) to reduce tab clutter
    - Helpful keymaps: `<leader>dq` (exit), `<leader>da` (accept all)
-   - Automatic temporary file cleanup
+   - Returns MCP-compliant responses: `FILE_SAVED` + content or `DIFF_REJECTED` + tab_name
 
 5. **Selection Tracking** (`lua/claudecode/selection.lua`)
 
@@ -67,6 +73,23 @@ The plugin follows a modular architecture with these main components:
    - Exposes setup and control functions
    - Manages plugin lifecycle
 
+## MCP Compliance Enhancements
+
+The plugin now features a **fully MCP-compliant openDiff tool** that implements the Model Context Protocol specification for blocking operations:
+
+### Key MCP Features
+
+- **Blocking Operation**: openDiff now waits indefinitely for user interaction instead of returning immediately
+- **MCP Content Array Format**: Returns responses as `{content: [{type: "text", text: "..."}]}`
+- **User Action Detection**: Monitors save events, buffer/tab close events, and explicit accept/reject actions
+- **Concurrent Operation Support**: Multiple diffs can run simultaneously with unique tab identifiers
+- **Resource Management**: Comprehensive cleanup of buffers, autocmds, and state on completion
+
+### Response Formats
+
+- **FILE_SAVED**: When user saves/accepts changes, returns the final file content
+- **DIFF_REJECTED**: When user closes/rejects the diff, returns the tab name
+
 ## Development Status
 
 The plugin is in beta stage with:
@@ -76,8 +99,9 @@ The plugin is in beta stage with:
 - Enhanced selection tracking with multi-mode support
 - Lock file management implemented
 - Complete MCP tool framework with dynamic registration
-- Core MCP tools: openFile, openDiff, getCurrentSelection, getOpenEditors
-- Native Neovim diff integration with configurable options
+- Core MCP tools: openFile, **openDiff (MCP-compliant)**, getCurrentSelection, getOpenEditors
+- **Enhanced diff integration** with blocking operations and MCP compliance
+- **Scratch buffer-based diff system** with automatic resource management
 - Terminal integration (Snacks.nvim and native support)
 - Comprehensive test suite (55+ tests passing)
 

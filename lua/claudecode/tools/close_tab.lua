@@ -49,6 +49,14 @@ local function handler(params)
   local tab_name = params.tab_name
   log.debug("Attempting to close tab: " .. tab_name)
 
+  -- Check if this is a diff tab (contains ✻ and ⧉ markers)
+  if tab_name:match("✻") and tab_name:match("⧉") then
+    log.debug("Detected diff tab - these are handled by diff cleanup system")
+    -- Diff tabs are handled by the diff module's cleanup system
+    -- Return success since the goal (tab closed) is achieved
+    return { message = "Tab closed: " .. tab_name .. " (handled by diff system)" }
+  end
+
   -- Try to find buffer by the tab name first
   local bufnr = vim.fn.bufnr(tab_name)
 
@@ -71,12 +79,9 @@ local function handler(params)
   end
 
   if bufnr == -1 then
-    log.error("Buffer not found for tab: " .. tab_name)
-    return {
-      code = -32000,
-      message = "Buffer operation error",
-      data = "Buffer not found for tab: " .. tab_name,
-    }
+    -- If buffer not found, the tab might already be closed - treat as success
+    log.debug("Buffer not found for tab (already closed?): " .. tab_name)
+    return { message = "Tab closed: " .. tab_name .. " (already closed)" }
   end
 
   local success, err = pcall(vim.api.nvim_buf_delete, bufnr, { force = false })

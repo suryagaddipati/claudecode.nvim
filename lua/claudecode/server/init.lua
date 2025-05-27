@@ -146,6 +146,22 @@ function M._handle_request(client, request)
 
   local success, result, error_data = pcall(handler, client, params)
   if success then
+    -- Check if this is a deferred response (blocking tool)
+    if result and result._deferred then
+      logger.debug("server", "Handler returned deferred response - storing for later")
+      -- Store the request info for later response
+      local deferred_info = {
+        client = result.client,
+        id = id,
+        coroutine = result.coroutine,
+        method = method,
+        params = result.params,
+      }
+      -- Set up the completion callback
+      M._setup_deferred_response(deferred_info)
+      return -- Don't send response now
+    end
+
     if error_data then
       M.send_response(client, id, nil, error_data)
     else
@@ -159,6 +175,55 @@ function M._handle_request(client, request)
     })
   end
 end
+
+---@brief Set up deferred response handling for blocking tools
+---@param deferred_info table Information about the deferred request
+-- Note: deferred_responses table removed - using global _G.claude_deferred_responses instead
+
+-- Add a unique module ID to detect reloading
+local module_instance_id = math.random(10000, 99999)
+logger.debug("server", "Server module loaded with instance ID:", module_instance_id)
+
+-- Note: debug_deferred_table function removed as deferred_responses table is no longer used
+
+function M._setup_deferred_response(deferred_info)
+  local co = deferred_info.coroutine
+
+  logger.debug("server", "Setting up deferred response for coroutine:", tostring(co))
+  logger.debug("server", "Storage happening in module instance:", module_instance_id)
+
+  -- Create a response sender function that captures the current server instance
+  local response_sender = function(result)
+    logger.debug("server", "Deferred response triggered for coroutine:", tostring(co))
+
+    if result and result.content then
+      -- MCP-compliant response
+      M.send_response(deferred_info.client, deferred_info.id, result, nil)
+    elseif result and result.error then
+      -- Error response
+      M.send_response(deferred_info.client, deferred_info.id, nil, result.error)
+    else
+      -- Fallback error
+      M.send_response(deferred_info.client, deferred_info.id, nil, {
+        code = -32603,
+        message = "Internal error",
+        data = "Deferred response completed with unexpected format",
+      })
+    end
+  end
+
+  -- Store the response sender in a global location that won't be affected by module reloading
+  if not _G.claude_deferred_responses then
+    _G.claude_deferred_responses = {}
+  end
+  _G.claude_deferred_responses[tostring(co)] = response_sender
+
+  logger.debug("server", "Stored response sender in global table for coroutine:", tostring(co))
+end
+
+-- Note: _send_deferred_response is no longer needed
+-- Responses are now handled via the global _G.claude_deferred_responses table
+-- to avoid module reloading issues
 
 ---@brief Handle JSON-RPC notification (no response)
 ---@param client table The client that sent the notification
@@ -216,6 +281,16 @@ function M.register_handlers()
         vim.inspect(params and params.arguments)
       )
       local result_or_error_table = tools.handle_invoke(client, params)
+
+      -- Check if this is a deferred response (blocking tool)
+      if result_or_error_table and result_or_error_table._deferred then
+        logger.debug("server", "Tool is blocking - setting up deferred response")
+        -- Return the deferred response directly - _handle_request will process it
+        return result_or_error_table
+      end
+
+      -- Log the response for debugging
+      logger.debug("server", "Response - tools/call", params and params.name .. ":", vim.inspect(result_or_error_table))
 
       if result_or_error_table.error then
         return nil, result_or_error_table.error

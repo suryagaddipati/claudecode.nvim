@@ -200,6 +200,97 @@ local vim = {
         vim._options[name] = value
       end
     end,
+
+    -- Add missing API functions for diff tests
+    nvim_create_buf = function(listed, scratch)
+      local bufnr = #vim._buffers + 1
+      vim._buffers[bufnr] = {
+        name = "",
+        lines = {},
+        options = {},
+        listed = listed,
+        scratch = scratch,
+      }
+      return bufnr
+    end,
+
+    nvim_buf_set_lines = function(bufnr, start, end_line, strict_indexing, replacement)
+      if not vim._buffers[bufnr] then
+        vim._buffers[bufnr] = { lines = {}, options = {} }
+      end
+      vim._buffers[bufnr].lines = replacement or {}
+    end,
+
+    nvim_buf_set_option = function(bufnr, name, value)
+      if not vim._buffers[bufnr] then
+        vim._buffers[bufnr] = { lines = {}, options = {} }
+      end
+      if not vim._buffers[bufnr].options then
+        vim._buffers[bufnr].options = {}
+      end
+      vim._buffers[bufnr].options[name] = value
+    end,
+
+    nvim_buf_is_valid = function(bufnr)
+      return vim._buffers[bufnr] ~= nil
+    end,
+
+    nvim_get_autocmds = function(opts)
+      if opts and opts.group then
+        local group = vim._autocmds[opts.group]
+        if group and group.events then
+          local result = {}
+          for id, event in pairs(group.events) do
+            table.insert(result, {
+              id = id,
+              group = opts.group,
+              event = event.events,
+              pattern = event.opts.pattern,
+              callback = event.opts.callback,
+            })
+          end
+          return result
+        end
+      end
+      return {}
+    end,
+
+    nvim_del_autocmd = function(id)
+      -- Find and remove autocmd by id
+      for group_name, group in pairs(vim._autocmds) do
+        if group.events and group.events[id] then
+          group.events[id] = nil
+          return
+        end
+      end
+    end,
+
+    nvim_get_current_win = function()
+      return 1000 -- Mock window ID
+    end,
+
+    nvim_win_set_buf = function(winid, bufnr)
+      if not vim._windows[winid] then
+        vim._windows[winid] = {}
+      end
+      vim._windows[winid].buf = bufnr
+    end,
+
+    nvim_win_is_valid = function(winid)
+      return vim._windows[winid] ~= nil
+    end,
+
+    nvim_win_close = function(winid, force)
+      vim._windows[winid] = nil
+    end,
+
+    nvim_get_current_tabpage = function()
+      return 1
+    end,
+
+    nvim_tabpage_set_var = function(tabpage, name, value)
+      -- Mock tabpage variable setting
+    end,
   },
 
   fn = {
@@ -284,6 +375,17 @@ local vim = {
       -- The random number ensures some uniqueness if called multiple times.
       return "/tmp/nvim_mock_tempfile_" .. math.random(1, 100000)
     end,
+
+    writefile = function(lines, filename, flags)
+      -- Mock implementation - just record that it was called
+      vim._written_files = vim._written_files or {}
+      vim._written_files[filename] = lines
+      return 0
+    end,
+
+    localtime = function()
+      return os.time()
+    end,
   },
 
   cmd = function(command)
@@ -333,6 +435,71 @@ local vim = {
       return {}
     end,
   },
+
+  -- Additional missing vim functions
+  wait = function(timeout, condition, interval, fast_only)
+    -- Mock implementation that immediately returns true if condition is met
+    -- For tests, we'll assume the condition is met quickly
+    local start_time = os.clock()
+    interval = interval or 200
+    timeout = timeout or 1000
+
+    while (os.clock() - start_time) * 1000 < timeout do
+      if condition and condition() then
+        return true
+      end
+      -- In a real implementation this would yield, but for tests we'll just continue
+    end
+    return false
+  end,
+
+  schedule = function(fn)
+    -- For tests, execute immediately
+    fn()
+  end,
+
+  defer_fn = function(fn, timeout)
+    -- For tests, we'll store the deferred function to potentially call it manually
+    vim._deferred_fns = vim._deferred_fns or {}
+    table.insert(vim._deferred_fns, { fn = fn, timeout = timeout })
+  end,
+
+  keymap = {
+    set = function(mode, lhs, rhs, opts)
+      -- Mock keymap setting
+      vim._keymaps = vim._keymaps or {}
+      vim._keymaps[mode] = vim._keymaps[mode] or {}
+      vim._keymaps[mode][lhs] = { rhs = rhs, opts = opts }
+    end,
+  },
+
+  split = function(str, sep)
+    local result = {}
+    local pattern = "([^" .. sep .. "]+)"
+    for match in str:gmatch(pattern) do
+      table.insert(result, match)
+    end
+    return result
+  end,
+
+  log = {
+    levels = {
+      TRACE = 0,
+      DEBUG = 1,
+      INFO = 2,
+      WARN = 3,
+      ERROR = 4,
+    },
+  },
+
+  notify = function(msg, level, opts)
+    -- Store the last notification for test assertions
+    vim._last_notify = {
+      msg = msg,
+      level = level,
+      opts = opts,
+    }
+  end,
 
   g = setmetatable({}, {
     __index = function(_, key)

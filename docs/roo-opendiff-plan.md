@@ -1,148 +1,122 @@
-# Final Plan for Implementing the `openDiff` MCP Tool
+# Plan to Make the openDiff Tool MCP Compliant
 
-## 1. Introduction
+This document outlines the plan to make the `openDiff` tool in the Neovim Claude Code integration compliant with the specification defined in `findings.md`. This plan incorporates ideas from a coworker's plan and adds some improvements.
 
-The goal is to implement the `openDiff` tool as specified by the Model Context Protocol (MCP). This tool will allow an MCP client (like Claude) to request Neovim to display a diff view between an existing file (`old_file_path`) and new content (`new_file_contents`). The implementation will use Neovim's native diffing capabilities.
+## Discrepancies Between Specification and Implementation
 
-## 2. `openDiff` Tool Definition and MCP Registration
+1.  **Blocking Behavior**: The current implementation does not block and wait for user interaction.
+2.  **Return Values**: The current implementation returns a simple success message instead of specific JSON responses based on user action.
+3.  **Error Handling**: The current implementation lacks specific error handling for user actions like rejecting the diff or failing to save the file.
 
-- **Name**: `openDiff`
-- **Description**: "Open a diff view between an existing file and new content."
-- **Parameters** (all REQUIRED as per `findings.md`):
-  - `old_file_path` (string): Path to the original file.
-  - `new_file_path` (string): Path to associate with the new content (e.g., for buffer context, or if `tab_name` is not sufficiently descriptive).
-  - `new_file_contents` (string): The full content of the "new" version of the file.
-  - `tab_name` (string): Suggested name for the diff tab/buffer displaying the new content.
-- The `inputSchema` in the `tools/list` MCP response will be updated to reflect these parameters and their descriptions.
-- The implementation will be by modifying the existing `M.open_diff` function within `lua/claudecode/tools/init.lua`. This function is already registered in `M.register_all()`.
+## Revised Plan
 
-## 3. MCP Interaction Flow for `openDiff`
+**Phase 1: Core Architecture Changes**
 
-The MCP request/response flow will follow the standard pattern:
+- **Enhance `diff.lua` Module**:
+  - Add `open_diff_blocking()` function that returns a "promise-like" table.
+  - Implement event monitoring system using Neovim autocmds.
+  - Track diff state per `tab_name` to handle multiple concurrent diffs.
+  - Add cleanup mechanisms for temporary files and event listeners.
+- **User Action Tracking**:
+  - Use the following autocmds:
+    - `BufWritePost`: File saved (`FILE_SAVED`)
+    - `TabClosed`/`BufDelete`: Tab closed (`DIFF_REJECTED`)
+- **State Management**:
 
-1. Client sends `tools/call` with `name: "openDiff"` and the specified arguments.
-2. The `M.handle_invoke` function in `lua/claudecode/tools/init.lua` receives the call.
-3. `M.handle_invoke` calls `M.tools["openDiff"](params.input)`, which is our `M.open_diff` function.
-4. `M.open_diff` executes, performs Neovim actions.
-5. If successful, `M.open_diff` returns a table representing the `content` array for the MCP response (e.g., `{{ type = "text", text = "Diff view opened..." }}`).
-6. If an error occurs within `M.open_diff` (e.g., file not found), it should call `error("message")`.
-7. `M.handle_invoke`'s `pcall` will catch this error and construct the standard JSON-RPC error response.
-8. The response (success or error) is sent back to the client.
+  - Adopt the `active_diffs` table structure:
 
-**Mermaid Diagram:**
+  ```lua
+  local active_diffs = {
+    [tab_name] = {
+      old_file_path = "...",
+      new_file_path = "...",
+      new_file_contents = "...",
+      temp_files = {...},
+      autocmd_ids = {...},
+      status = "pending", -- "pending", "saved", "rejected"
+      result_content = nil
+    }
+  }
+  ```
+
+**Phase 2: Blocking Implementation**
+
+- **Coroutine-Based Waiting**:
+
+  - Use coroutines to implement blocking behavior.
+  - The `handler` function should become:
+
+  ```lua
+  local function handler(params)
+    -- Set up diff and monitoring
+    local co = coroutine.running()
+    local diff_id = setup_blocking_diff(params, function(result)
+      coroutine.resume(co, result)
+    end)
+
+    -- Wait for user action
+    return coroutine.yield()
+  end
+  ```
+
+- **MCP Content Format**:
+  - Ensure return format compliance:
+    - Success: `{content = {{type="text", text="FILE_SAVED"}, {type="text", text=file_contents}}}`
+    - Reject: `{content = {{type="text", text="DIFF_REJECTED"}, {type="text", text=tab_name}}}`
+
+**Phase 3: Event Integration**
+
+- **Autocmd Setup**:
+  - Monitor `BufWritePost` for save events on diff files.
+  - Monitor `TabClosed` and `BufDelete` for rejection events.
+  - Set up keymaps for explicit accept/reject actions (optional for initial implementation).
+  - Clean up autocmds when the diff resolves.
+- **Temporary File Management**:
+  - Create temp files for `new_file_contents` in a secure location (using `vim.api.nvim_create_buf(false, true)` to create a scratch buffer).
+  - Ensure proper cleanup regardless of user action.
+  - Handle concurrent diffs with unique temp file names.
+
+**Phase 4: Testing & Validation**
+
+- **Behavior Validation**:
+  - Test blocking behavior with multiple scenarios.
+  - Verify correct MCP content format is returned.
+  - Test cleanup of resources (autocmds, temp files).
+  - Test concurrent diff handling.
+- **Edge Case Handling**:
+  - Handle Neovim shutdown during a pending diff.
+  - Handle invalid file paths gracefully.
+  - Handle permission errors on temp file creation.
+
+## Mermaid Diagram
 
 ```mermaid
 sequenceDiagram
-    participant Client as MCP Client (e.g., Claude)
-    participant Plugin_MCP_Server as Neovim Plugin (MCP Server via tools/init.lua)
-    participant Neovim_API as Neovim API
+    participant Claude CLI
+    participant openDiff Tool
+    participant diff_module.open_diff
+    participant Neovim API
 
-    Client->>Plugin_MCP_Server: tools/call { name: "openDiff", arguments: {...} }
-    Plugin_MCP_Server->>Plugin_MCP_Server: M.handle_invoke(args)
-    Plugin_MCP_Server->>Plugin_MCP_Server: M.open_diff(arguments)
-    Plugin_MCP_Server->>Neovim_API: vim.cmd("edit old_file_path")
-    Plugin_MCP_Server->>Neovim_API: vim.cmd("vnew")
-    Plugin_MCP_Server->>Neovim_API: vim.api.nvim_buf_set_name()
-    Plugin_MCP_Server->>Neovim_API: vim.api.nvim_buf_set_lines()
-    Plugin_MCP_Server->>Neovim_API: Set buffer options (buftype, bufhidden, etc.)
-    Plugin_MCP_Server->>Neovim_API: vim.cmd("diffthis") (in new window)
-    Plugin_MCP_Server->>Neovim_API: Switch window
-    Plugin_MCP_Server->>Neovim_API: vim.cmd("diffthis") (in old window)
-    alt Success
-        Plugin_MCP_Server-->>Client: tools/call Response (Result: { content: [...] })
-    else Error (e.g., file not found)
-        Plugin_MCP_Server-->>Client: tools/call Response (Error: { code: ..., message: ... })
+    Claude CLI->>openDiff Tool: Request openDiff
+    openDiff Tool->>diff_module.open_diff: Call open_diff with params
+    diff_module.open_diff->>Neovim API: Create scratch buffer for new_file_contents
+    diff_module.open_diff->>Neovim API: Open diff view
+    diff_module.open_diff->>Neovim API: Monitor BufWritePost (save)
+    diff_module.open_diff->>Neovim API: Monitor BufDelete (close)
+    loop User interacts with diff view
+        alt User saves file
+            Neovim API->>diff_module.open_diff: BufWritePost event
+            diff_module.open_diff->>openDiff Tool: Resolve with FILE_SAVED and content
+        else User closes tab
+            Neovim API->>diff_module.open_diff: BufDelete event
+            diff_module.open_diff->>openDiff Tool: Resolve with DIFF_REJECTED and tab_name
+        end
     end
+    openDiff Tool->>Claude CLI: Return JSON response
 ```
 
-## 4. Neovim Implementation Details
+## Changes and Additions to the Coworker's Plan:
 
-The `M.open_diff` function in `lua/claudecode/tools/init.lua` will be implemented as follows:
-
-```lua
--- In lua/claudecode/tools/init.lua
-
--- Tool: Open a diff view
--- params = { old_file_path, new_file_path, new_file_contents, tab_name }
-function M.open_diff(params)
-  -- 1. Validate parameters
-  if not params.old_file_path or not params.new_file_path or not params.new_file_contents or not params.tab_name then
-    error("Missing required parameters for openDiff. Required: old_file_path, new_file_path, new_file_contents, tab_name.")
-  end
-
-  local old_file_path = params.old_file_path
-  -- new_file_path can be used for additional context if tab_name is generic,
-  -- or potentially to inform filetype detection if the scratch buffer needs it,
-  -- though tab_name is the primary identifier for the new content's buffer.
-  local new_file_contents = params.new_file_contents
-  local tab_name = params.tab_name
-
-  -- Validate old_file_path readability
-  if vim.fn.filereadable(old_file_path) == 0 then
-    error("Failed to open diff: Original file '" .. old_file_path .. "' not found or not readable.")
-  end
-
-  -- 2. Open old file in the current window
-  vim.cmd("edit " .. vim.fn.fnameescape(old_file_path))
-  local old_win = vim.api.nvim_get_current_win()
-
-  -- 3. Create a new vertical split for the new content
-  vim.cmd("vnew")
-  local new_win = vim.api.nvim_get_current_win()
-  local new_buf = vim.api.nvim_get_current_buf()
-
-  -- Set buffer name for the new content
-  vim.api.nvim_buf_set_name(new_buf, tab_name)
-
-  -- Populate the new buffer with new_file_contents
-  local lines = vim.split(new_file_contents, '\\n', { plain = true, trimempty = false })
-  vim.api.nvim_buf_set_lines(new_buf, 0, -1, false, lines)
-
-  -- Set buffer options for the scratch buffer
-  vim.bo[new_buf].buftype = 'nofile'
-  vim.bo[new_buf].bufhidden = 'hide'
-  vim.bo[new_buf].swapfile = false
-  vim.bo[new_buf].modifiable = true
-
-  -- 4. Activate diff mode for both windows
-  vim.api.nvim_set_current_win(new_win)
-  vim.cmd("diffthis")
-
-  vim.api.nvim_set_current_win(old_win)
-  vim.cmd("diffthis")
-
-  -- Ensure scrollbind is active
-  vim.wo[new_win].scrollbind = true
-  vim.wo[old_win].scrollbind = true
-
-  -- Focus the new content window
-  vim.api.nvim_set_current_win(new_win)
-
-  return {
-    { type = "text", text = "Diff view '" .. tab_name .. "' opened successfully." }
-  }
-end
-```
-
-## 5. Testing Strategy
-
-- **Unit Tests (Lua)**:
-  - Target `M.open_diff` in `lua/claudecode/tools/init.lua`.
-  - Test various inputs: valid paths, invalid `old_file_path`, different `new_file_contents` (empty, multi-line, special characters), missing parameters.
-  - Mock Neovim API calls (`vim.cmd`, `vim.api.*`, `vim.bo.*`, `vim.wo.*`, `vim.fn.*`) to verify correct sequences, parameters, and option settings.
-  - Verify that `error()` is called appropriately for validation failures.
-  - Verify the structure of the success return value.
-- **Integration Tests**:
-  - Use a test MCP client (e.g., `scripts/mcp_test.sh`) to send `openDiff` `tools/call` requests.
-  - Visually inspect Neovim to confirm:
-    - Correct window layout (e.g., vertical split).
-    - `old_file_path` loaded in one window.
-    - `new_file_contents` loaded in the other (scratch buffer).
-    - The scratch buffer has the name specified by `tab_name`.
-    - Diff highlighting is active.
-    - Windows are scroll-bound.
-  - Test error conditions (e.g., non-existent `old_file_path`) and verify the MCP error response.
-
-## 6. Conclusion
-
-This plan details the implementation of the `openDiff` MCP tool using Neovim's native diffing capabilities, integrated directly into the existing tool handling structure in `lua/claudecode/tools/init.lua`. This approach is robust and directly addresses the requirements of the `openDiff` tool.
+- **Temporary File Creation**: Instead of creating actual temporary files on disk, use Neovim's scratch buffers (`vim.api.nvim_create_buf(false, true)`). This is more efficient and avoids potential permission issues.
+- **Keymaps**: Make the keymap implementation optional for the initial implementation. It can be added later as an enhancement.
+- **Error Handling**: Add more specific error handling for cases where the `diff_module.open_diff` function fails to open the diff view.
