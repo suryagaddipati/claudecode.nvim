@@ -132,6 +132,18 @@ function M.update_selection()
   end
 
   local current_buf = vim.api.nvim_get_current_buf()
+  local buf_name = vim.api.nvim_buf_get_name(current_buf)
+
+  -- If the buffer name starts with "✻ [Claude Code]", do not update selection
+  if buf_name and string.sub(buf_name, 1, string.len("✻ [Claude Code]")) == "✻ [Claude Code]" then
+    -- Optionally, cancel demotion timer like for the terminal
+    if M.state.demotion_timer then
+      M.state.demotion_timer:stop()
+      M.state.demotion_timer:close()
+      M.state.demotion_timer = nil
+    end
+    return
+  end
 
   -- If the current buffer is the Claude terminal, do not update selection
   if terminal then

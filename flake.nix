@@ -12,6 +12,10 @@
       let
         pkgs = import nixpkgs {
           inherit system;
+
+          config.allowUnfreePredicate = pkg: builtins.elem (pkgs.lib.getName pkg) [
+            "claude-code"
+          ];
         };
 
         treefmt = treefmt-nix.lib.evalModule pkgs {
@@ -27,6 +31,26 @@
           };
           settings.formatter.shellcheck.options = [ "--exclude=SC1091,SC2016" ];
         };
+
+        # CI-specific packages (minimal set for testing and linting)
+        ciPackages = with pkgs; [
+          lua5_1
+          luajitPackages.luacheck
+          luajitPackages.busted
+          luajitPackages.luacov
+          neovim
+          treefmt.config.build.wrapper
+        ];
+
+        # Development packages (additional tools for development)
+        devPackages = with pkgs; [
+          ast-grep
+          luarocks
+          gnumake
+          websocat
+          jq
+          claude-code
+        ];
       in
       {
         # Format the source tree
@@ -35,22 +59,16 @@
         # Check formatting
         checks.formatting = treefmt.config.build.check self;
 
-        devShells.default = pkgs.mkShell {
-          buildInputs = with pkgs; [
-            lua5_1
-            luajitPackages.luacheck
-            luajitPackages.busted
-            luajitPackages.luacov
+        devShells = {
+          # Minimal CI environment
+          ci = pkgs.mkShell {
+            buildInputs = ciPackages;
+          };
 
-            ast-grep
-            neovim
-            luarocks
-            gnumake
-            websocat
-            jq
-
-            treefmt.config.build.wrapper
-          ];
+          # Full development environment
+          default = pkgs.mkShell {
+            buildInputs = ciPackages ++ devPackages;
+          };
         };
       }
     );
