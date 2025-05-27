@@ -80,16 +80,52 @@ jobs:
                 echo "end_of_record"
               done
             } > lcov.info
-          else
-            echo "No coverage data found in luacov.stats.out"
-            touch lcov.info
-          fi
 
-      - name: Upload coverage report
-        uses: codecov/codecov-action@c16abc29c95fcf9174b58eb7e1abf4c866893bc8 # v4
-        with:
-          files: ./lcov.info
-          fail_ci_if_error: false
+            # Create markdown coverage summary for GitHub Actions
+            {
+              echo "## 📊 Test Coverage Report"
+              echo ""
+
+              # Extract overall coverage percentage
+              if [ -f "luacov.report.out" ]; then
+                overall_coverage=$(grep -E "Total.*%" luacov.report.out | grep -oE "[0-9]+\.[0-9]+%" | head -1)
+                if [ -n "$overall_coverage" ]; then
+                  echo "**Overall Coverage: $overall_coverage**"
+                  echo ""
+                fi
+
+                # Create table header
+                echo "| File | Coverage |"
+                echo "|------|----------|"
+
+                # Extract file-by-file coverage
+                grep -E "^[^ ].*:" luacov.report.out | while read -r line; do
+                  file=$(echo "$line" | cut -d':' -f1)
+                  percent=$(echo "$line" | grep -oE "[0-9]+\.[0-9]+%" | head -1)
+                  if [ -n "$percent" ]; then
+                    # Add emoji based on coverage level
+                    percent_num="${percent%.*}"
+                    if [ "$percent_num" -ge 90 ]; then
+                      emoji="🟢"
+                    elif [ "$percent_num" -ge 70 ]; then
+                      emoji="🟡"
+                    else
+                      emoji="🔴"
+                    fi
+                    echo "| \`$file\` | $emoji $percent |"
+                  fi
+                done
+              else
+                echo "❌ No coverage report generated"
+              fi
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            {
+              echo "## 📊 Test Coverage Report"
+              echo ""
+              echo "❌ No coverage data found - tests may not have run with coverage enabled"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
 
   integration-tests:
     runs-on: ubuntu-latest
