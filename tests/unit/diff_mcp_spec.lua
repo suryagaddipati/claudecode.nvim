@@ -49,7 +49,7 @@ describe("MCP-compliant diff operations", function()
       end)
 
       -- Wait for resolution
-      vim.wait(1000, function()
+      vim.wait(100, function() -- Reduced from 1000ms to 100ms
         return coroutine.status(co) == "dead"
       end)
 
@@ -78,7 +78,7 @@ describe("MCP-compliant diff operations", function()
       end)
 
       -- Wait for resolution
-      vim.wait(1000, function()
+      vim.wait(100, function() -- Reduced from 1000ms to 100ms
         return coroutine.status(co) == "dead"
       end)
 
@@ -125,7 +125,7 @@ describe("MCP-compliant diff operations", function()
         diff._resolve_diff_as_rejected(test_tab_name)
       end)
 
-      vim.wait(1000, function()
+      vim.wait(100, function() -- Reduced from 1000ms to 100ms
         return coroutine.status(co2) == "dead"
       end)
     end)
@@ -225,7 +225,7 @@ describe("MCP-compliant diff operations", function()
         diff._resolve_diff_as_rejected(tab_name_2)
       end)
 
-      vim.wait(1000, function()
+      vim.wait(100, function() -- Reduced from 1000ms to 100ms
         return coroutine.status(co1) == "dead" and coroutine.status(co2) == "dead"
       end)
     end)

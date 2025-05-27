@@ -438,18 +438,19 @@ local vim = {
 
   -- Additional missing vim functions
   wait = function(timeout, condition, interval, fast_only)
-    -- Mock implementation that immediately returns true if condition is met
-    -- For tests, we'll assume the condition is met quickly
+    -- Optimized mock implementation for faster test execution
     local start_time = os.clock()
-    interval = interval or 200
+    interval = interval or 10 -- Reduced from 200ms to 10ms for faster polling
     timeout = timeout or 1000
 
     while (os.clock() - start_time) * 1000 < timeout do
       if condition and condition() then
         return true
       end
-      -- In a real implementation this would yield, but for tests we'll just continue
+      -- Add a small sleep to prevent busy-waiting and reduce CPU usage
+      os.execute("sleep 0.001") -- 1ms sleep
     end
+
     return false
   end,
 

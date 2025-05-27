@@ -127,7 +127,7 @@ describe("openDiff tool MCP compliance", function()
       end)
 
       -- Wait for resolution
-      vim.wait(1000, function()
+      vim.wait(100, function() -- Reduced from 1000ms to 100ms
         return coroutine.status(co) == "dead"
       end)
 
@@ -164,7 +164,7 @@ describe("openDiff tool MCP compliance", function()
       end)
 
       -- Wait for resolution
-      vim.wait(1000, function()
+      vim.wait(100, function() -- Reduced from 1000ms to 100ms
         return coroutine.status(co) == "dead"
       end)
 

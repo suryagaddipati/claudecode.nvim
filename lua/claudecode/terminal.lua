@@ -357,7 +357,7 @@ function M.open(opts_override)
       managed_snacks_terminal:focus()
       local term_buf_id = managed_snacks_terminal.buf
       if term_buf_id and vim.api.nvim_buf_get_option(term_buf_id, "buftype") == "terminal" then
-        vim.api.nvim_win_call(managed_snacks_terminal.winid, function()
+        vim.api.nvim_win_call(managed_snacks_terminal.win, function()
           vim.cmd("startinsert")
         end)
       end

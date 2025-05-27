@@ -275,6 +275,15 @@ function M._create_commands()
       if sent_successfully then
         vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Esc>", true, false, true), "n", false)
         logger.debug("command", "ClaudeCodeSend: Exited visual mode after successful send.")
+
+        -- Focus the Claude Code terminal after sending selection
+        local terminal_ok, terminal = pcall(require, "claudecode.terminal")
+        if terminal_ok then
+          terminal.open({}) -- Open/focus the terminal
+          logger.debug("command", "ClaudeCodeSend: Focused Claude Code terminal after selection send.")
+        else
+          logger.warn("command", "ClaudeCodeSend: Failed to load terminal module for focusing.")
+        end
       end
     else
       logger.error("command", "ClaudeCodeSend: Failed to load selection module.")
