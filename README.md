@@ -8,7 +8,7 @@
 
 > 🎯 **TL;DR:** When Anthropic released Claude Code with VS Code and JetBrains support, I reverse-engineered their extension and built this Neovim plugin. This plugin implements the same WebSocket-based MCP protocol, giving Neovim users the same AI-powered coding experience.
 
-<https://github.com/user-attachments/assets/c625d855-5f32-4a1f-8757-1a3150e2786d>
+<https://github.com/user-attachments/assets/9c310fb5-5a23-482b-bedc-e21ae457a82d>
 
 ## What Makes This Special
 
@@ -150,7 +150,7 @@ See [DEVELOPMENT.md](./DEVELOPMENT.md) for build instructions and development gu
 
 ## License
 
-MIT
+[MIT](LICENSE)
 
 ## Acknowledgements
 
