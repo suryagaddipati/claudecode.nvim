@@ -1,323 +1,243 @@
-# Claude Code Neovim Integration: Architecture
+# Architecture
 
-This document describes the architecture of the Claude Code Neovim integration plugin.
+This document provides technical details about the claudecode.nvim implementation for developers and contributors.
 
 ## Overview
 
-The plugin establishes a bidirectional communication channel between Neovim and the Claude Code CLI using WebSockets and the Model Context Protocol (MCP). This allows Claude to interact with Neovim, accessing file content, making edits, and responding to user selections.
+The plugin implements a WebSocket server in pure Lua that speaks the same protocol as Anthropic's official IDE extensions. It's built entirely with Neovim built-ins (`vim.loop`, `vim.json`) with zero external dependencies.
 
 ## Core Components
 
-### 1. WebSocket Server
+### 1. WebSocket Server (`server/`)
 
-The WebSocket server is the communication backbone of the plugin, implemented using pure Neovim built-ins:
-
-- **Pure Neovim Implementation**: Uses `vim.loop` (libuv) for TCP server operations
-- **RFC 6455 Compliant**: Full WebSocket protocol implementation
-- **JSON-RPC 2.0**: Standard message format for MCP communication
-- **Zero Dependencies**: No external libraries required
-- **Async Processing**: Non-blocking operations integrated with Neovim's event loop
-- **Multiple Clients**: Supports concurrent WebSocket connections
-- **Connection Management**: Ping/pong keepalive and graceful disconnection
-
-```
-┌─────────────┐                  ┌─────────────┐
-│             │   WebSocket/     │             │
-│  Neovim     │◄──► JSON-RPC 2.0 │  Claude CLI │
-│  Plugin     │                  │             │
-└─────────────┘                  └─────────────┘
-```
-
-**WebSocket Server Architecture:**
-
-```
-┌─────────────────┐
-│   TCP Server    │ ◄─── vim.loop.new_tcp()
-│  (vim.loop)     │
-└─────────┬───────┘
-          │
-┌─────────▼───────┐
-│ HTTP Upgrade    │ ◄─── WebSocket handshake
-│   Handler       │
-└─────────┬───────┘
-          │
-┌─────────▼───────┐
-│ WebSocket Frame │ ◄─── RFC 6455 frame processing
-│   Parser        │
-└─────────┬───────┘
-          │
-┌─────────▼───────┐
-│   JSON-RPC      │ ◄─── MCP message routing
-│  Message Router │
-└─────────────────┘
-```
-
-### 2. Lock File System
-
-The lock file system enables Claude CLI to discover the Neovim integration:
-
-- Creates lock files at `~/.claude/ide/[port].lock`
-- Contains workspace folders, PID, and transport information
-- Updated when workspace folders change
-- Removed when the plugin is disabled or Neovim exits
-
-```json
-{
-  "pid": 12345,
-  "workspaceFolders": ["/path/to/workspace"],
-  "ideName": "Neovim",
-  "transport": "ws"
-}
-```
-
-### 3. MCP Tool System
-
-The plugin implements a dynamic tool system following the Model Context Protocol 2025-03-26 specification. Tools are registered with both handlers and JSON schemas:
-
-**MCP-Exposed Tools:**
-
-- `openFile` - Opens files with optional line/text selection
-- `getCurrentSelection` - Gets current text selection
-- `getOpenEditors` - Lists currently open files
-- `openDiff` - Opens native Neovim diff views for file comparisons
-
-**Internal Tools** (not exposed via MCP):
-
-- `getDiagnostics`, `getWorkspaceFolders`, `saveDocument`, etc.
-
-**Tool Architecture:**
-
-- Centralized registration with `M.register(name, schema, handler)`
-- Dynamic tool list generation via `M.get_tool_list()`
-- Schema validation and JSON-RPC parameter handling
-- Automatic MCP exposure based on schema presence
-
-Each tool follows a request/response pattern:
-
-```
-Claude CLI                            Neovim Plugin
-    │                                      │
-    │ ─────Tool Request (JSON-RPC)───────► │
-    │                                      │
-    │                                      │ ┌─────────────┐
-    │                                      │ │ Execute     │
-    │                                      │ │ tool logic  │
-    │                                      │ └─────────────┘
-    │                                      │
-    │ ◄────Tool Response (JSON-RPC)─────── │
-    │                                      │
-```
-
-### 4. Diff Integration System
-
-The plugin provides a configurable diff system that Claude can use to show file changes:
-
-**Diff Providers:**
-
-- `native` - Uses Neovim's built-in diff mode with `diffthis`
-- `auto` - Automatically selects the best available provider
-
-**Diff Configuration:**
+A complete RFC 6455 WebSocket implementation in pure Lua:
 
 ```lua
-diff_opts = {
-  auto_close_on_accept = true,    -- Auto-close when accepting changes
-  show_diff_stats = true,         -- Show diff statistics
-  vertical_split = true,          -- Use vertical split for diff view
-  open_in_current_tab = true,     -- Open in current tab (reduces clutter)
-}
+-- server/tcp.lua - TCP server using vim.loop
+local tcp = vim.loop.new_tcp()
+tcp:bind("127.0.0.1", port)  -- Always localhost!
+tcp:listen(128, on_connection)
+
+-- server/handshake.lua - HTTP upgrade handling
+-- Validates Sec-WebSocket-Key, generates Accept header
+local accept_key = base64(sha1(key .. WEBSOCKET_GUID))
+
+-- server/frame.lua - WebSocket frame parser
+-- Handles fragmentation, masking, control frames
+local opcode = bit.band(byte1, 0x0F)
+local masked = bit.band(byte2, 0x80) ~= 0
+local payload_len = bit.band(byte2, 0x7F)
+
+-- server/client.lua - Connection management
+-- Tracks state, handles ping/pong, manages cleanup
 ```
 
-**Native Diff Features:**
+Key implementation details:
 
-- Current-tab mode (default) - opens diff in current tab to reduce clutter
-- Helpful keymaps in current-tab mode:
-  - `<leader>dq` - Exit diff mode and cleanup
-  - `<leader>da` - Accept all changes
-  - `]c` / `[c` - Navigate between changes (standard Neovim)
-- Automatic temporary file cleanup
-- Configurable split orientation (vertical/horizontal)
+- Uses `vim.schedule()` for thread-safe Neovim API calls
+- Implements SHA-1 in pure Lua for WebSocket handshake
+- Handles all WebSocket opcodes (text, binary, close, ping, pong)
+- Automatic ping/pong keepalive every 30 seconds
 
-**Diff Flow:**
+### 2. Lock File System (`lockfile.lua`)
 
-```
-Claude Request ──► openDiff MCP tool ──► diff.lua
-                                              │
-                                              ▼
-                                      ┌─────────────────┐
-                                      │ Create temp file│
-                                      │ with new content│
-                                      └─────────────────┘
-                                              │
-                                              ▼
-                                      ┌─────────────────┐
-                                      │ Open original   │
-                                      │ file in editor  │
-                                      └─────────────────┘
-                                              │
-                                              ▼
-                                      ┌─────────────────┐
-                                      │ Create split &  │
-                                      │ enable diffthis │
-                                      └─────────────────┘
+Manages discovery files for Claude CLI:
+
+```lua
+-- Atomic file writing to prevent partial reads
+local temp_path = lock_path .. ".tmp"
+write_file(temp_path, json_data)
+vim.loop.fs_rename(temp_path, lock_path)
+
+-- Cleanup on exit
+vim.api.nvim_create_autocmd("VimLeavePre", {
+  callback = function()
+    vim.loop.fs_unlink(lock_path)
+  end
+})
 ```
 
-### 5. Selection Tracking
+### 3. MCP Tool System (`tools/`)
 
-The plugin monitors text selections in Neovim:
+Dynamic tool registration with JSON schema validation:
 
-- Uses autocommands to detect selection changes
-- Debounces updates to avoid flooding Claude
-- Formats selection data according to MCP protocol
-- Sends updates to Claude via WebSocket
-- Supports sending `at_mentioned` notifications for visual selections using the `:ClaudeCodeSend` command, providing focused context to Claude.
+```lua
+-- Tool registration
+M.register("openFile", {
+  type = "object",
+  properties = {
+    filePath = { type = "string", description = "Path to open" }
+  },
+  required = { "filePath" }
+}, function(params)
+  -- Implementation
+  vim.cmd("edit " .. params.filePath)
+  return { content = {{ type = "text", text = "Opened" }} }
+end)
 
-### 6. Terminal Integration
-
-The plugin provides a dedicated terminal interface for Claude Code CLI:
-
-- Uses [folke/snacks.nvim](https://github.com/folke/snacks.nvim) for terminal management
-- Creates a vertical split terminal with customizable size and position
-- Supports focus, toggle, and close operations
-- Maintains terminal state across operations
-- Automatically cleans up on window close
-
+-- Automatic MCP tool list generation
+function M.get_tool_list()
+  local tools = {}
+  for name, tool in pairs(registry) do
+    if tool.schema then  -- Only expose tools with schemas
+      table.insert(tools, {
+        name = name,
+        description = tool.schema.description,
+        inputSchema = tool.schema
+      })
+    end
+  end
+  return tools
+end
 ```
-┌─────────────┐    ┌─────────────────┐    ┌─────────────┐
-│             │    │                 │    │             │
-│  Neovim     │◄───┤ Claude Terminal │◄───┤  Claude CLI │
-│  Buffers    │    │ (Snacks.nvim)   │    │             │
-└─────────────┘    └─────────────────┘    └─────────────┘
+
+### 4. Diff System (`diff.lua`)
+
+Native Neovim diff implementation:
+
+```lua
+-- Create temp file with proposed changes
+local temp_file = vim.fn.tempname()
+write_file(temp_file, new_content)
+
+-- Open diff in current tab to reduce clutter
+vim.cmd("edit " .. original_file)
+vim.cmd("diffthis")
+vim.cmd("vsplit " .. temp_file)
+vim.cmd("diffthis")
+
+-- Custom keymaps for diff mode
+vim.keymap.set("n", "<leader>da", accept_all_changes)
+vim.keymap.set("n", "<leader>dq", exit_diff_mode)
 ```
 
-### 7. Environment Integration
+### 5. Selection Tracking (`selection.lua`)
 
-The plugin manages the environment for Claude CLI:
+Debounced selection monitoring:
 
-- Sets required environment variables:
-  - `CLAUDE_CODE_SSE_PORT`: The WebSocket server port
-  - `ENABLE_IDE_INTEGRATION`: Enabled flag
-- Provides configuration for the terminal command
+```lua
+-- Track selection changes with debouncing
+local timer = nil
+vim.api.nvim_create_autocmd("CursorMoved", {
+  callback = function()
+    if timer then timer:stop() end
+    timer = vim.defer_fn(send_selection_update, 50)
+  end
+})
 
-## Message Flow
+-- Visual mode demotion delay
+-- Preserves selection context when switching to terminal
+```
 
-1. **Initialization:**
+### 6. Terminal Integration (`terminal.lua`)
 
-   ```
-   Neovim Plugin ──► Start WebSocket Server
-                  ──► Create Lock File
-                  ──► Set Up Autocommands
-   ```
+Flexible terminal management with provider pattern:
 
-2. **Claude Connection:**
+```lua
+-- Snacks.nvim provider (preferred)
+if has_snacks then
+  Snacks.terminal.open(cmd, {
+    win = { position = "right", width = 0.3 }
+  })
+else
+  -- Native fallback
+  vim.cmd("vsplit | terminal " .. cmd)
+end
+```
 
-   ```
-   Claude CLI     ──► Read Lock File
-                  ──► Connect to WebSocket
-                  ──► Send Handshake
-   Neovim Plugin  ──► Accept Connection
-                  ──► Process Handshake
-   ```
+## Key Implementation Patterns
 
-3. **Tool Invocation:**
+### Thread Safety
 
-   ```
-   Claude CLI     ──► Send Tool Request
-   Neovim Plugin  ──► Process Request
-                  ──► Execute Tool Logic
-                  ──► Send Response
-   ```
+All Neovim API calls from async contexts use `vim.schedule()`:
 
-4. **Selection Updates:**
+```lua
+client:on("message", function(data)
+  vim.schedule(function()
+    -- Safe to use vim.* APIs here
+  end)
+end)
+```
 
-   ```
-   User           ──► Make Selection in Neovim
-   Neovim Plugin  ──► Detect Selection Change
-                  ──► Format Selection Data
-                  ──► Send Update to Claude (e.g., `selection_changed` or `at_mentioned` via `:ClaudeCodeSend`)
-   ```
+### Error Handling
+
+Consistent error propagation pattern:
+
+```lua
+local ok, result = pcall(risky_operation)
+if not ok then
+  logger.error("Operation failed: " .. tostring(result))
+  return false, result
+end
+return true, result
+```
+
+### Resource Cleanup
+
+Automatic cleanup on shutdown:
+
+```lua
+vim.api.nvim_create_autocmd("VimLeavePre", {
+  callback = function()
+    M.stop()  -- Stop server, remove lock file
+  end
+})
+```
 
 ## Module Structure
 
 ```
 lua/claudecode/
-├── init.lua              # Main entry point and setup
+├── init.lua              # Plugin entry point
 ├── config.lua            # Configuration management
-├── server/
-│   ├── init.lua          # WebSocket server main interface with JSON-RPC 2.0
-│   ├── tcp.lua           # TCP server using vim.loop
-│   ├── utils.lua         # Utility functions (base64, SHA-1, HTTP parsing)
-│   ├── frame.lua         # WebSocket frame encoding/decoding (RFC 6455)
-│   ├── handshake.lua     # HTTP upgrade and WebSocket handshake
-│   ├── client.lua        # WebSocket client connection management
-│   └── mock.lua          # Mock server for testing
-├── lockfile.lua          # Lock file management
-├── tools/
-│   └── init.lua          # MCP tool registration, schema management, and dispatch
-├── diff.lua              # Native Neovim diff support
-├── selection.lua         # Selection tracking and notifications
-├── terminal.lua          # Terminal management (Snacks.nvim or native)
-└── meta/
-    └── vim.lua           # Vim API type definitions
+├── server/               # WebSocket implementation
+│   ├── tcp.lua           # TCP server (vim.loop)
+│   ├── handshake.lua     # HTTP upgrade handling
+│   ├── frame.lua         # RFC 6455 frame parser
+│   ├── client.lua        # Connection management
+│   └── utils.lua         # Pure Lua SHA-1, base64
+├── tools/init.lua        # MCP tool registry
+├── diff.lua              # Native diff support
+├── selection.lua         # Selection tracking
+├── terminal.lua          # Terminal management
+└── lockfile.lua          # Discovery files
 ```
 
-**WebSocket Server Implementation Details:**
+## Testing
 
-- **`server/tcp.lua`**: Creates TCP server using `vim.loop.new_tcp()`, handles port binding and client connections
-- **`server/handshake.lua`**: Processes HTTP upgrade requests, validates WebSocket headers, generates accept keys
-- **`server/frame.lua`**: Implements WebSocket frame parsing/encoding per RFC 6455 specification
-- **`server/client.lua`**: Manages individual WebSocket client connections and state
-- **`server/utils.lua`**: Provides base64 encoding, SHA-1 hashing, and XOR operations in pure Lua
-- **`server/init.lua`**: Main server interface that orchestrates all components and handles JSON-RPC messages
+Three-layer testing strategy using busted:
 
-## Testing Architecture
+```lua
+-- Unit tests: isolated function testing
+describe("frame parser", function()
+  it("handles masked frames", function()
+    local frame = parse_frame(masked_data)
+    assert.equals("hello", frame.payload)
+  end)
+end)
 
-The testing strategy involves multiple layers:
+-- Component tests: subsystem testing
+describe("websocket server", function()
+  it("accepts connections", function()
+    local server = Server:new()
+    server:start(12345)
+    -- Test connection logic
+  end)
+end)
 
-1. **Unit Tests:**
-
-   - Test individual functions in isolation
-   - Mock dependencies as needed
-
-2. **Component Tests:**
-
-   - Test subsystems (WebSocket, tools, etc.)
-   - Use controlled environment
-
-3. **Integration Tests:**
-   - Test end-to-end functionality
-   - Use mock Claude client
-
-Tests are organized parallel to the module structure:
-
-```
-tests/
-├── unit/
-│   ├── config_spec.lua
-│   ├── server_spec.lua
-│   ├── terminal_spec.lua
-│   └── tools_spec.lua
-├── component/
-│   ├── server_spec.lua
-│   └── tools_spec.lua
-├── integration/
-│   └── e2e_spec.lua
-├── mocks/
-│   ├── neovim.lua
-│   └── claude_client.lua
-└── harness.lua
+-- Integration tests: end-to-end with mock Claude
+describe("full flow", function()
+  it("handles tool calls", function()
+    local mock_claude = create_mock_client()
+    -- Test complete message flow
+  end)
+end)
 ```
 
-## Security Considerations
+## Performance & Security
 
-- The WebSocket server only accepts local connections
-- Lock files contain no sensitive information
-- File operations only work within workspace folders
-- No credentials or tokens are stored or transmitted
-
-## Performance Considerations
-
-- Selection tracking is debounced to reduce overhead
-- File operations are asynchronous where possible
-- The plugin maintains minimal memory footprint
-- Idle resource usage is negligible
+- **Debounced Updates**: 50ms delay on selection changes
+- **Localhost Only**: Server binds to 127.0.0.1
+- **Resource Cleanup**: Automatic on vim exit
+- **Memory Efficient**: Minimal footprint, no caching
+- **Async I/O**: Non-blocking vim.loop operations

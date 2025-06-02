@@ -1,6 +1,6 @@
-# Claude Code Neovim Integration: Development Guide
+# Development Guide
 
-This document provides an overview of the project structure, development workflow, and implementation priorities for contributors.
+Quick guide for contributors to the claudecode.nvim project.
 
 ## Project Structure
 
@@ -29,20 +29,20 @@ claudecode.nvim/
 
 ## Core Components Implementation Status
 
-| Component              | Status  | Priority | Notes                                                   |
-| ---------------------- | ------- | -------- | ------------------------------------------------------- |
-| Basic plugin structure | ✅ Done | -        | Initial setup complete                                  |
-| Configuration system   | ✅ Done | -        | Support for user configuration                          |
-| WebSocket server       | ✅ Done | -        | Pure Lua RFC 6455 compliant                             |
-| Lock file management   | ✅ Done | -        | Basic implementation complete                           |
-| Selection tracking     | ✅ Done | -        | Enhanced with multi-mode support                        |
-| MCP tools framework    | ✅ Done | -        | Dynamic tool registration and schema system             |
-| Core MCP tools         | ✅ Done | -        | openFile, openDiff, getCurrentSelection, getOpenEditors |
-| Diff integration       | ✅ Done | -        | Native Neovim diff with configurable options            |
-| Terminal integration   | ✅ Done | -        | Snacks.nvim and native terminal support                 |
-| Tests                  | ✅ Done | -        | 55+ tests passing, comprehensive coverage               |
-| CI pipeline            | ✅ Done | -        | GitHub Actions configured                               |
-| Documentation          | ✅ Done | -        | Complete documentation                                  |
+| Component              | Status  | Priority | Notes                                                                |
+| ---------------------- | ------- | -------- | -------------------------------------------------------------------- |
+| Basic plugin structure | ✅ Done | -        | Initial setup complete                                               |
+| Configuration system   | ✅ Done | -        | Support for user configuration                                       |
+| WebSocket server       | ✅ Done | -        | Pure Lua RFC 6455 compliant                                          |
+| Lock file management   | ✅ Done | -        | Basic implementation complete                                        |
+| Selection tracking     | ✅ Done | -        | Enhanced with multi-mode support                                     |
+| MCP tools framework    | ✅ Done | -        | Dynamic tool registration and schema system                          |
+| Core MCP tools         | ✅ Done | -        | openFile, openDiff, getCurrentSelection, getOpenEditors              |
+| Diff integration       | ✅ Done | -        | Native Neovim diff with configurable options                         |
+| Terminal integration   | ✅ Done | -        | Snacks.nvim and native terminal support                              |
+| Tests                  | ✅ Done | -        | Comprehensive test suite with unit, component, and integration tests |
+| CI pipeline            | ✅ Done | -        | GitHub Actions configured                                            |
+| Documentation          | ✅ Done | -        | Complete documentation                                               |
 
 ## Development Priorities
 

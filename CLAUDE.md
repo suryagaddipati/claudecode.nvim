@@ -1,10 +1,10 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides context for Claude Code when working with this codebase.
 
 ## Project Overview
 
-A Neovim plugin that integrates with Claude Code CLI to provide seamless AI coding experience. The plugin creates a WebSocket server using pure Neovim built-ins to communicate with Claude Code CLI via JSON-RPC 2.0, implementing the Model Context Protocol (MCP).
+claudecode.nvim - A Neovim plugin that implements the same WebSocket-based MCP protocol as Anthropic's official IDE extensions. Built with pure Lua and zero dependencies.
 
 ## Common Development Commands
 
