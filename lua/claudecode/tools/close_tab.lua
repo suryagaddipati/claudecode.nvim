@@ -51,10 +51,23 @@ local function handler(params)
 
   -- Check if this is a diff tab (contains ✻ and ⧉ markers)
   if tab_name:match("✻") and tab_name:match("⧉") then
-    log.debug("Detected diff tab - these are handled by diff cleanup system")
-    -- Diff tabs are handled by the diff module's cleanup system
-    -- Return success since the goal (tab closed) is achieved
-    return { message = "Tab closed: " .. tab_name .. " (handled by diff system)" }
+    log.debug("Detected diff tab - closing diff view")
+
+    -- Try to close the diff
+    local diff_module_ok, diff = pcall(require, "claudecode.diff")
+    if diff_module_ok and diff.close_diff_by_tab_name then
+      local closed = diff.close_diff_by_tab_name(tab_name)
+      if closed then
+        log.debug("Successfully closed diff for tab: " .. tab_name)
+        return { message = "Tab closed: " .. tab_name }
+      else
+        log.debug("Diff not found for tab: " .. tab_name)
+        return { message = "Tab closed: " .. tab_name .. " (diff not found)" }
+      end
+    else
+      log.error("Failed to load diff module or close_diff_by_tab_name not available")
+      return { message = "Tab closed: " .. tab_name .. " (diff system unavailable)" }
+    end
   end
 
   -- Try to find buffer by the tab name first

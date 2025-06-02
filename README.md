@@ -173,8 +173,7 @@ require("claudecode").setup({
   -- to the Claude terminal. (Default: 50)
   visual_demotion_delay_ms = 50,
 
-  -- Diff provider configuration for openDiff MCP tool
-  diff_provider = "auto", -- "auto", "native", or "diffview" (when implemented)
+  -- Diff configuration for openDiff MCP tool
   diff_opts = {
     auto_close_on_accept = true,    -- Auto-close diff when accepting changes
     show_diff_stats = true,         -- Show diff statistics

@@ -130,13 +130,31 @@ end
 -- @local
 -- @return boolean True if valid, false otherwise.
 local function is_fallback_terminal_valid()
-  if managed_fallback_terminal_winid and vim.api.nvim_win_is_valid(managed_fallback_terminal_winid) then
-    if managed_fallback_terminal_bufnr and vim.api.nvim_buf_is_valid(managed_fallback_terminal_bufnr) then
-      return true
-    end
+  -- First check if we have a valid buffer
+  if not managed_fallback_terminal_bufnr or not vim.api.nvim_buf_is_valid(managed_fallback_terminal_bufnr) then
+    cleanup_fallback_terminal_state()
+    return false
   end
-  cleanup_fallback_terminal_state()
-  return false
+
+  -- If buffer is valid but window is invalid, try to find a window displaying this buffer
+  if not managed_fallback_terminal_winid or not vim.api.nvim_win_is_valid(managed_fallback_terminal_winid) then
+    -- Search all windows for our terminal buffer
+    local windows = vim.api.nvim_list_wins()
+    for _, win in ipairs(windows) do
+      if vim.api.nvim_win_get_buf(win) == managed_fallback_terminal_bufnr then
+        -- Found a window displaying our terminal buffer, update the tracked window ID
+        managed_fallback_terminal_winid = win
+        require("claudecode.logger").debug("terminal", "Recovered terminal window ID:", win)
+        return true
+      end
+    end
+    -- Buffer exists but no window displays it
+    cleanup_fallback_terminal_state()
+    return false
+  end
+
+  -- Both buffer and window are valid
+  return true
 end
 
 --- Opens a new terminal using native Neovim functions.
@@ -336,6 +354,37 @@ local function get_claude_command_and_env()
   return cmd_string, env_table
 end
 
+--- Find any existing Claude Code terminal buffer by checking terminal job command
+-- @local
+-- @return number|nil Buffer number if found, nil otherwise
+local function find_existing_claude_terminal()
+  local buffers = vim.api.nvim_list_bufs()
+  for _, buf in ipairs(buffers) do
+    if vim.api.nvim_buf_is_valid(buf) and vim.api.nvim_buf_get_option(buf, "buftype") == "terminal" then
+      -- Check if this is a Claude Code terminal by examining the buffer name or terminal job
+      local buf_name = vim.api.nvim_buf_get_name(buf)
+      -- Terminal buffers often have names like "term://..." that include the command
+      if buf_name:match("claude") then
+        -- Additional check: see if there's a window displaying this buffer
+        local windows = vim.api.nvim_list_wins()
+        for _, win in ipairs(windows) do
+          if vim.api.nvim_win_get_buf(win) == buf then
+            require("claudecode.logger").debug(
+              "terminal",
+              "Found existing Claude terminal in buffer",
+              buf,
+              "window",
+              win
+            )
+            return buf, win
+          end
+        end
+      end
+    end
+  end
+  return nil, nil
+end
+
 --- Opens or focuses the Claude terminal.
 -- @param opts_override table (optional) Overrides for terminal appearance (split_side, split_width_percentage).
 function M.open(opts_override)
@@ -375,8 +424,19 @@ function M.open(opts_override)
     if is_fallback_terminal_valid() then
       focus_fallback_terminal()
     else
-      if not open_fallback_terminal(cmd_string, claude_env_table, effective_config) then
-        vim.notify("Failed to open Claude terminal using native fallback.", vim.log.levels.ERROR)
+      -- Check if there's an existing Claude terminal we lost track of
+      local existing_buf, existing_win = find_existing_claude_terminal()
+      if existing_buf and existing_win then
+        -- Recover the existing terminal
+        managed_fallback_terminal_bufnr = existing_buf
+        managed_fallback_terminal_winid = existing_win
+        -- Note: We can't recover the job ID easily, but it's less critical
+        require("claudecode.logger").debug("terminal", "Recovered existing Claude terminal")
+        focus_fallback_terminal()
+      else
+        if not open_fallback_terminal(cmd_string, claude_env_table, effective_config) then
+          vim.notify("Failed to open Claude terminal using native fallback.", vim.log.levels.ERROR)
+        end
       end
     end
   end
@@ -461,8 +521,25 @@ function M.toggle(opts_override)
         focus_fallback_terminal() -- This already calls startinsert
       end
     else
-      if not open_fallback_terminal(cmd_string, claude_env_table, effective_config) then
-        vim.notify("Failed to open Claude terminal using native fallback (toggle).", vim.log.levels.ERROR)
+      -- Check if there's an existing Claude terminal we lost track of
+      local existing_buf, existing_win = find_existing_claude_terminal()
+      if existing_buf and existing_win then
+        -- Recover the existing terminal
+        managed_fallback_terminal_bufnr = existing_buf
+        managed_fallback_terminal_winid = existing_win
+        require("claudecode.logger").debug("terminal", "Recovered existing Claude terminal in toggle")
+
+        -- Check if we're currently in this terminal
+        local current_neovim_win_id = vim.api.nvim_get_current_win()
+        if existing_win == current_neovim_win_id then
+          close_fallback_terminal()
+        else
+          focus_fallback_terminal()
+        end
+      else
+        if not open_fallback_terminal(cmd_string, claude_env_table, effective_config) then
+          vim.notify("Failed to open Claude terminal using native fallback (toggle).", vim.log.levels.ERROR)
+        end
       end
     end
   end

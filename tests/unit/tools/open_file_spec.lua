@@ -11,6 +11,7 @@ describe("Tool: open_file", function()
     -- Mock Neovim functions used by the handler
     _G.vim = _G.vim or {}
     _G.vim.fn = _G.vim.fn or {}
+    _G.vim.api = _G.vim.api or {}
     _G.vim.cmd_history = {} -- Store cmd history for assertions
     _G.vim.fn.expand = spy.new(function(path)
       return path -- Simple pass-through for testing
@@ -26,6 +27,29 @@ describe("Tool: open_file", function()
     end)
     _G.vim.cmd = spy.new(function(command)
       table.insert(_G.vim.cmd_history, command)
+    end)
+
+    -- Mock window-related APIs
+    _G.vim.api.nvim_list_wins = spy.new(function()
+      return { 1000 } -- Return a single window
+    end)
+    _G.vim.api.nvim_win_get_buf = spy.new(function(win)
+      return 1 -- Mock buffer ID
+    end)
+    _G.vim.api.nvim_buf_get_option = spy.new(function(buf, option)
+      return "" -- Return empty string for all options
+    end)
+    _G.vim.api.nvim_win_get_config = spy.new(function(win)
+      return {} -- Return empty config (no relative positioning)
+    end)
+    _G.vim.api.nvim_win_call = spy.new(function(win, callback)
+      return callback() -- Just execute the callback
+    end)
+    _G.vim.api.nvim_set_current_win = spy.new(function(win)
+      -- Do nothing
+    end)
+    _G.vim.api.nvim_get_current_win = spy.new(function()
+      return 1000
     end)
   end)
 

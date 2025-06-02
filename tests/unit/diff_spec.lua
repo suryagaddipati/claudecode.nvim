@@ -49,98 +49,6 @@ describe("Diff Module", function()
     teardown()
   end)
 
-  describe("Provider Detection", function()
-    it("should detect when diffview.nvim is not available", function()
-      local old_require = require
-      _G.require = function(name)
-        if name == "diffview" then
-          error("module 'diffview' not found")
-        end
-        return old_require(name)
-      end
-
-      local available = diff.is_diffview_available()
-      expect(available).to_be_false()
-
-      _G.require = old_require
-    end)
-
-    it("should detect when diffview.nvim is available", function()
-      local old_require = require
-      _G.require = function(name)
-        if name == "diffview" then
-          return {}
-        end
-        return old_require(name)
-      end
-
-      local available = diff.is_diffview_available()
-      expect(available).to_be_true()
-
-      _G.require = old_require
-    end)
-  end)
-
-  describe("Provider Selection", function()
-    it("should return native when diffview is not available and provider is auto", function()
-      diff.setup({ diff_provider = "auto" })
-
-      local old_require = require
-      _G.require = function(name)
-        if name == "diffview" then
-          error("module 'diffview' not found")
-        end
-        return old_require(name)
-      end
-
-      local provider = diff.get_current_provider()
-      expect(provider).to_be("native")
-
-      _G.require = old_require
-    end)
-
-    it("should return diffview when available and provider is auto", function()
-      diff.setup({ diff_provider = "auto" })
-
-      local old_require = require
-      _G.require = function(name)
-        if name == "diffview" then
-          return {}
-        end
-        return old_require(name)
-      end
-
-      local provider = diff.get_current_provider()
-      expect(provider).to_be("diffview")
-
-      _G.require = old_require
-    end)
-
-    it("should return native when provider is explicitly set to native", function()
-      diff.setup({ diff_provider = "native" })
-
-      local provider = diff.get_current_provider()
-      expect(provider).to_be("native")
-    end)
-
-    it("should fallback to native when diffview provider is set but not available", function()
-      diff.setup({ diff_provider = "diffview" })
-
-      local old_require = require
-      _G.require = function(name)
-        if name == "diffview" then
-          error("module 'diffview' not found")
-        end
-        return old_require(name)
-      end
-
-      local provider = diff.get_current_provider()
-      expect(provider).to_be("native")
-
-      _G.require = old_require
-    end)
-  end)
-
   describe("Temporary File Management", function()
     it("should create temporary files with correct content", function()
       local test_content = "This is test content\nLine 2\nLine 3"
@@ -189,7 +97,6 @@ describe("Diff Module", function()
   describe("Native Diff Implementation", function()
     it("should create diff with correct parameters", function()
       diff.setup({
-        diff_provider = "native",
         diff_opts = {
           vertical_split = true,
           show_diff_stats = false,
@@ -220,32 +127,31 @@ describe("Diff Module", function()
       expect(result.provider).to_be("native")
       expect(result.tab_name).to_be("Test Diff")
 
-      local found_tabnew = false
+      local found_vsplit = false
       local found_diffthis = false
-      local found_vertical_split = false
+      local found_edit = false
 
       for _, cmd in ipairs(commands) do
-        if cmd:find("tabnew", 1, true) then
-          found_tabnew = true
+        if cmd:find("vsplit", 1, true) then
+          found_vsplit = true
         end
         if cmd:find("diffthis", 1, true) then
           found_diffthis = true
         end
-        if cmd:find("vertical split", 1, true) then
-          found_vertical_split = true
+        if cmd:find("edit", 1, true) then
+          found_edit = true
         end
       end
 
-      expect(found_tabnew).to_be_true()
+      expect(found_vsplit).to_be_true()
       expect(found_diffthis).to_be_true()
-      expect(found_vertical_split).to_be_true()
+      expect(found_edit).to_be_true()
 
       rawset(io, "open", old_io_open)
     end)
 
     it("should use horizontal split when configured", function()
       diff.setup({
-        diff_provider = "native",
         diff_opts = {
           vertical_split = false,
           show_diff_stats = false,
@@ -292,7 +198,7 @@ describe("Diff Module", function()
     end)
 
     it("should handle temporary file creation errors", function()
-      diff.setup({ diff_provider = "native" })
+      diff.setup({})
 
       local old_io_open = io.open
       rawset(io, "open", function()
@@ -310,8 +216,8 @@ describe("Diff Module", function()
   end)
 
   describe("Open Diff Function", function()
-    it("should use native provider when configured", function()
-      diff.setup({ diff_provider = "native" })
+    it("should use native provider", function()
+      diff.setup({})
 
       local native_called = false
       diff._open_native_diff = function(old_path, new_path, content, tab_name)
@@ -328,35 +234,6 @@ describe("Diff Module", function()
       expect(native_called).to_be_true()
       expect(result.provider).to_be("native")
       expect(result.success).to_be_true()
-    end)
-
-    it("should use diffview provider when available and configured", function()
-      diff.setup({ diff_provider = "diffview" })
-
-      local old_require = require
-      _G.require = function(name)
-        if name == "diffview" then
-          return {}
-        end
-        return old_require(name)
-      end
-
-      local diffview_called = false
-      diff._open_diffview_diff = function(old_path, new_path, content, tab_name)
-        diffview_called = true
-        return {
-          success = true,
-          provider = "diffview",
-          tab_name = tab_name,
-        }
-      end
-
-      local result = diff.open_diff("/path/to/old.lua", "/path/to/new.lua", "new content", "Test Diff")
-
-      expect(diffview_called).to_be_true()
-      expect(result.provider).to_be("diffview")
-
-      _G.require = old_require
     end)
   end)
 

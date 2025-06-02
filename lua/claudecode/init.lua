@@ -37,7 +37,6 @@ M.version = {
 --- @field log_level "trace"|"debug"|"info"|"warn"|"error" Log level.
 --- @field track_selection boolean Enable sending selection updates to Claude.
 --- @field visual_demotion_delay_ms number Milliseconds to wait before demoting a visual selection.
---- @field diff_provider "auto"|"diffview"|"native" The diff provider to use.
 --- @field diff_opts { auto_close_on_accept: boolean, show_diff_stats: boolean, vertical_split: boolean, open_in_current_tab: boolean } Options for the diff provider.
 
 --- @type ClaudeCode.Config
@@ -48,7 +47,6 @@ local default_config = {
   log_level = "info",
   track_selection = true,
   visual_demotion_delay_ms = 200,
-  diff_provider = "auto",
   diff_opts = {
     auto_close_on_accept = true,
     show_diff_stats = true,

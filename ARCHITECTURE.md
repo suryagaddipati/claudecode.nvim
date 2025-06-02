@@ -116,7 +116,6 @@ The plugin provides a configurable diff system that Claude can use to show file 
 
 - `native` - Uses Neovim's built-in diff mode with `diffthis`
 - `auto` - Automatically selects the best available provider
-- `diffview` - (Future) Integration with diffview.nvim plugin
 
 **Diff Configuration:**
 
@@ -142,7 +141,7 @@ diff_opts = {
 **Diff Flow:**
 
 ```
-Claude Request ──► openDiff MCP tool ──► diff.lua provider
+Claude Request ──► openDiff MCP tool ──► diff.lua
                                               │
                                               ▼
                                       ┌─────────────────┐
@@ -255,7 +254,7 @@ lua/claudecode/
 ├── lockfile.lua          # Lock file management
 ├── tools/
 │   └── init.lua          # MCP tool registration, schema management, and dispatch
-├── diff.lua              # Diff provider system (native Neovim diff support)
+├── diff.lua              # Native Neovim diff support
 ├── selection.lua         # Selection tracking and notifications
 ├── terminal.lua          # Terminal management (Snacks.nvim or native)
 └── meta/

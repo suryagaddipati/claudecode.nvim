@@ -61,11 +61,12 @@ end
 
 local vim = {
   _buffers = {},
-  _windows = {},
+  _windows = { [1000] = { buf = 1 } }, -- Initialize with a default window
   _commands = {},
   _autocmds = {},
   _vars = {},
   _options = {},
+  _current_window = 1000,
 
   api = {
     nvim_create_user_command = function(name, callback, opts)
@@ -235,6 +236,28 @@ local vim = {
       return vim._buffers[bufnr] ~= nil
     end,
 
+    nvim_buf_is_loaded = function(bufnr)
+      -- In our mock, all valid buffers are considered loaded
+      return vim._buffers[bufnr] ~= nil
+    end,
+
+    nvim_list_bufs = function()
+      -- Return a list of buffer IDs
+      local bufs = {}
+      for bufnr, _ in pairs(vim._buffers) do
+        table.insert(bufs, bufnr)
+      end
+      return bufs
+    end,
+
+    nvim_buf_call = function(bufnr, callback)
+      -- Mock implementation - just call the callback
+      if vim._buffers[bufnr] then
+        return callback()
+      end
+      error("Invalid buffer id: " .. tostring(bufnr))
+    end,
+
     nvim_get_autocmds = function(opts)
       if opts and opts.group then
         local group = vim._autocmds[opts.group]
@@ -269,11 +292,37 @@ local vim = {
       return 1000 -- Mock window ID
     end,
 
+    nvim_set_current_win = function(winid)
+      -- Mock implementation - just track that it was called
+      vim._current_window = winid
+      return true
+    end,
+
+    nvim_list_wins = function()
+      -- Return a list of window IDs
+      local wins = {}
+      for winid, _ in pairs(vim._windows) do
+        table.insert(wins, winid)
+      end
+      if #wins == 0 then
+        -- Always have at least one window
+        table.insert(wins, 1000)
+      end
+      return wins
+    end,
+
     nvim_win_set_buf = function(winid, bufnr)
       if not vim._windows[winid] then
         vim._windows[winid] = {}
       end
       vim._windows[winid].buf = bufnr
+    end,
+
+    nvim_win_get_buf = function(winid)
+      if vim._windows[winid] then
+        return vim._windows[winid].buf or 1
+      end
+      return 1 -- Default buffer
     end,
 
     nvim_win_is_valid = function(winid)
@@ -282,6 +331,22 @@ local vim = {
 
     nvim_win_close = function(winid, force)
       vim._windows[winid] = nil
+    end,
+
+    nvim_win_call = function(winid, callback)
+      -- Mock implementation - just call the callback
+      if vim._windows[winid] then
+        return callback()
+      end
+      error("Invalid window id: " .. tostring(winid))
+    end,
+
+    nvim_win_get_config = function(winid)
+      -- Mock implementation - return empty config for non-floating windows
+      if vim._windows[winid] then
+        return vim._windows[winid].config or {}
+      end
+      return {}
     end,
 
     nvim_get_current_tabpage = function()
@@ -303,7 +368,13 @@ local vim = {
     end,
 
     filereadable = function(path)
-      return 1
+      -- Check if file actually exists
+      local file = io.open(path, "r")
+      if file then
+        file:close()
+        return 1
+      end
+      return 0
     end,
 
     bufnr = function(name)
