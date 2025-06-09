@@ -49,8 +49,15 @@ Using [lazy.nvim](https://github.com/folke/lazy.nvim):
   "coder/claudecode.nvim",
   config = true,
   keys = {
+    { "<leader>a", nil, desc = "AI/Claude Code" },
     { "<leader>ac", "<cmd>ClaudeCode<cr>", desc = "Toggle Claude" },
     { "<leader>as", "<cmd>ClaudeCodeSend<cr>", mode = "v", desc = "Send to Claude" },
+    {
+      "<leader>as",
+      "<cmd>ClaudeCodeTreeAdd<cr>",
+      desc = "Add file",
+      ft = { "NvimTree", "neo-tree" },
+    },
   },
 }
 ```
@@ -60,12 +67,79 @@ That's it! For more configuration options, see [Advanced Setup](#advanced-setup)
 ## Usage
 
 1. **Launch Claude**: Run `:ClaudeCode` to open Claude in a split terminal
-2. **Send context**: Select text and run `:'<,'>ClaudeCodeSend` to send it to Claude
+2. **Send context**:
+   - Select text in visual mode and use `<leader>as` to send it to Claude
+   - In `nvim-tree` or `neo-tree`, press `<leader>as` on a file to add it to Claude's context
 3. **Let Claude work**: Claude can now:
    - See your current file and selections in real-time
    - Open files in your editor
    - Show diffs with proposed changes
    - Access diagnostics and workspace info
+
+## Commands
+
+- `:ClaudeCode` - Toggle the Claude Code terminal window
+- `:ClaudeCodeSend` - Send current visual selection to Claude, or add files from tree explorer
+- `:ClaudeCodeTreeAdd` - Add selected file(s) from tree explorer to Claude context (also available via ClaudeCodeSend)
+- `:ClaudeCodeAdd <file-path> [start-line] [end-line]` - Add a specific file or directory to Claude context by path with optional line range
+
+### Tree Integration
+
+The `<leader>as` keybinding has context-aware behavior:
+
+- **In normal buffers (visual mode)**: Sends selected text to Claude
+- **In nvim-tree/neo-tree buffers**: Adds the file under cursor (or selected files) to Claude's context
+
+This allows you to quickly add entire files to Claude's context for review, refactoring, or discussion.
+
+#### Features
+
+- **Single file**: Place cursor on any file and press `<leader>as`
+- **Multiple files**: Select multiple files (using tree plugin's selection features) and press `<leader>as`
+- **Smart detection**: Automatically detects whether you're in nvim-tree or neo-tree
+- **Error handling**: Clear feedback if no files are selected or if tree plugins aren't available
+
+### Direct File Addition
+
+The `:ClaudeCodeAdd` command allows you to add files or directories directly by path, with optional line range specification:
+
+```vim
+:ClaudeCodeAdd src/main.lua
+:ClaudeCodeAdd ~/projects/myproject/
+:ClaudeCodeAdd ./README.md
+:ClaudeCodeAdd src/main.lua 50 100    " Lines 50-100 only
+:ClaudeCodeAdd config.lua 25          " From line 25 to end of file
+```
+
+#### Features
+
+- **Path completion**: Tab completion for file and directory paths
+- **Path expansion**: Supports `~` for home directory and relative paths
+- **Line range support**: Optionally specify start and end lines for files (ignored for directories)
+- **Validation**: Checks that files and directories exist before adding, validates line numbers
+- **Flexible**: Works with both individual files and entire directories
+
+#### Examples
+
+```vim
+" Add entire files
+:ClaudeCodeAdd src/components/Header.tsx
+:ClaudeCodeAdd ~/.config/nvim/init.lua
+
+" Add entire directories (line numbers ignored)
+:ClaudeCodeAdd tests/
+:ClaudeCodeAdd ../other-project/
+
+" Add specific line ranges
+:ClaudeCodeAdd src/main.lua 50 100        " Lines 50 through 100
+:ClaudeCodeAdd config.lua 25              " From line 25 to end of file
+:ClaudeCodeAdd utils.py 1 50              " First 50 lines
+:ClaudeCodeAdd README.md 10 20            " Just lines 10-20
+
+" Path expansion works with line ranges
+:ClaudeCodeAdd ~/project/src/app.js 100 200
+:ClaudeCodeAdd ./relative/path.lua 30
+```
 
 ## How It Works
 
@@ -132,8 +206,15 @@ See [DEVELOPMENT.md](./DEVELOPMENT.md) for build instructions and development gu
   },
   config = true,
   keys = {
+    { "<leader>a", nil, desc = "AI/Claude Code" },
     { "<leader>ac", "<cmd>ClaudeCode<cr>", desc = "Toggle Claude" },
     { "<leader>as", "<cmd>ClaudeCodeSend<cr>", mode = "v", desc = "Send to Claude" },
+    {
+      "<leader>as",
+      "<cmd>ClaudeCodeTreeAdd<cr>",
+      desc = "Add file",
+      ft = { "NvimTree", "neo-tree" },
+    },
     { "<leader>ao", "<cmd>ClaudeCodeOpen<cr>", desc = "Open Claude" },
     { "<leader>ax", "<cmd>ClaudeCodeClose<cr>", desc = "Close Claude" },
   },

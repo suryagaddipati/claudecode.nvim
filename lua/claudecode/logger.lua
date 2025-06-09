@@ -20,8 +20,7 @@ local level_values = {
 
 local current_log_level_value = M.levels.INFO
 
---- Initializes the logger with the provided configuration.
--- @param plugin_config table The configuration table (e.g., from claudecode.init.state.config).
+--- @param plugin_config table The configuration table (e.g., from claudecode.init.state.config).
 function M.setup(plugin_config)
   local conf = plugin_config
 
@@ -83,8 +82,7 @@ local function log(level, component, message_parts)
   end
 end
 
---- Logs a message at the ERROR level.
--- @param component string|nil Optional component/module name.
+--- @param component string|nil Optional component/module name.
 -- @param ... any Varargs representing parts of the message.
 function M.error(component, ...)
   if type(component) ~= "string" then
@@ -94,8 +92,7 @@ function M.error(component, ...)
   end
 end
 
---- Logs a message at the WARN level.
--- @param component string|nil Optional component/module name.
+--- @param component string|nil Optional component/module name.
 -- @param ... any Varargs representing parts of the message.
 function M.warn(component, ...)
   if type(component) ~= "string" then
@@ -105,8 +102,7 @@ function M.warn(component, ...)
   end
 end
 
---- Logs a message at the INFO level.
--- @param component string|nil Optional component/module name.
+--- @param component string|nil Optional component/module name.
 -- @param ... any Varargs representing parts of the message.
 function M.info(component, ...)
   if type(component) ~= "string" then
@@ -116,8 +112,18 @@ function M.info(component, ...)
   end
 end
 
---- Logs a message at the DEBUG level.
--- @param component string|nil Optional component/module name.
+--- Check if a specific log level is enabled
+-- @param level_name string The level name ("error", "warn", "info", "debug", "trace")
+-- @return boolean Whether the level is enabled
+function M.is_level_enabled(level_name)
+  local level_value = level_values[level_name]
+  if not level_value then
+    return false
+  end
+  return level_value <= current_log_level_value
+end
+
+--- @param component string|nil Optional component/module name.
 -- @param ... any Varargs representing parts of the message.
 function M.debug(component, ...)
   if type(component) ~= "string" then
@@ -127,8 +133,7 @@ function M.debug(component, ...)
   end
 end
 
---- Logs a message at the TRACE level.
--- @param component string|nil Optional component/module name.
+--- @param component string|nil Optional component/module name.
 -- @param ... any Varargs representing parts of the message.
 function M.trace(component, ...)
   if type(component) ~= "string" then

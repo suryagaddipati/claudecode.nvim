@@ -18,7 +18,6 @@ M.defaults = {
 }
 
 --- Validates the provided configuration table.
--- Ensures that all configuration options are of the correct type and within valid ranges.
 -- @param config table The configuration table to validate.
 -- @return boolean true if the configuration is valid.
 -- @error string if any configuration option is invalid.
@@ -54,7 +53,6 @@ function M.validate(config)
     "visual_demotion_delay_ms must be a non-negative number"
   )
 
-  -- Validate diff_opts
   assert(type(config.diff_opts) == "table", "diff_opts must be a table")
   assert(type(config.diff_opts.auto_close_on_accept) == "boolean", "diff_opts.auto_close_on_accept must be a boolean")
   assert(type(config.diff_opts.show_diff_stats) == "boolean", "diff_opts.show_diff_stats must be a boolean")
@@ -65,8 +63,6 @@ function M.validate(config)
 end
 
 --- Applies user configuration on top of default settings and validates the result.
--- Merges the user-provided configuration with the default configuration,
--- then validates the merged configuration.
 -- @param user_config table|nil The user-provided configuration table.
 -- @return table The final, validated configuration table.
 function M.apply(user_config)
