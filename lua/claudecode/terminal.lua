@@ -18,7 +18,7 @@ local claudecode_server_module = require("claudecode.server.init")
 local config = {
   split_side = "right",
   split_width_percentage = 0.30,
-  provider = "snacks",
+  provider = "auto",
   show_native_term_exit_tip = true,
   terminal_cmd = nil,
   auto_close = true,
@@ -48,7 +48,15 @@ end
 local function get_provider()
   local logger = require("claudecode.logger")
 
-  if config.provider == "snacks" then
+  if config.provider == "auto" then
+    -- Try snacks first, then fallback to native silently
+    local snacks_provider = load_provider("snacks")
+    if snacks_provider and snacks_provider.is_available() then
+      logger.debug("terminal", "Auto-detected snacks terminal provider")
+      return snacks_provider
+    end
+    -- Fall through to native provider
+  elseif config.provider == "snacks" then
     local snacks_provider = load_provider("snacks")
     if snacks_provider and snacks_provider.is_available() then
       return snacks_provider

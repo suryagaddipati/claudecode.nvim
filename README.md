@@ -199,7 +199,7 @@ See [DEVELOPMENT.md](./DEVELOPMENT.md) for build instructions and development gu
     terminal = {
       split_side = "right",
       split_width_percentage = 0.3,
-      provider = "snacks", -- or "native"
+      provider = "auto", -- "auto" (default), "snacks", or "native"
       auto_close = true, -- Auto-close terminal after command completion
     },
 
