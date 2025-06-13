@@ -276,10 +276,51 @@ function M.close()
   close_terminal()
 end
 
+--- Simple toggle: always show/hide terminal regardless of focus
 --- @param cmd_string string
 --- @param env_table table
 --- @param effective_config table
-function M.toggle(cmd_string, env_table, effective_config)
+function M.simple_toggle(cmd_string, env_table, effective_config)
+  -- Check if we have a valid terminal buffer (process running)
+  local has_buffer = bufnr and vim.api.nvim_buf_is_valid(bufnr)
+  local is_visible = has_buffer and is_terminal_visible()
+
+  if is_visible then
+    -- Terminal is visible, hide it (but keep process running)
+    hide_terminal()
+  else
+    -- Terminal is not visible
+    if has_buffer then
+      -- Terminal process exists but is hidden, show it
+      if show_hidden_terminal(effective_config) then
+        logger.debug("terminal", "Showing hidden terminal")
+      else
+        logger.error("terminal", "Failed to show hidden terminal")
+      end
+    else
+      -- No terminal process exists, check if there's an existing one we lost track of
+      local existing_buf, existing_win = find_existing_claude_terminal()
+      if existing_buf and existing_win then
+        -- Recover the existing terminal
+        bufnr = existing_buf
+        winid = existing_win
+        logger.debug("terminal", "Recovered existing Claude terminal")
+        focus_terminal()
+      else
+        -- No existing terminal found, create a new one
+        if not open_terminal(cmd_string, env_table, effective_config) then
+          vim.notify("Failed to open Claude terminal using native fallback (simple_toggle).", vim.log.levels.ERROR)
+        end
+      end
+    end
+  end
+end
+
+--- Smart focus toggle: switches to terminal if not focused, hides if currently focused
+--- @param cmd_string string
+--- @param env_table table
+--- @param effective_config table
+function M.focus_toggle(cmd_string, env_table, effective_config)
   -- Check if we have a valid terminal buffer (process running)
   local has_buffer = bufnr and vim.api.nvim_buf_is_valid(bufnr)
   local is_visible = has_buffer and is_terminal_visible()
@@ -325,10 +366,18 @@ function M.toggle(cmd_string, env_table, effective_config)
     else
       -- No existing terminal found, create a new one
       if not open_terminal(cmd_string, env_table, effective_config) then
-        vim.notify("Failed to open Claude terminal using native fallback (toggle).", vim.log.levels.ERROR)
+        vim.notify("Failed to open Claude terminal using native fallback (focus_toggle).", vim.log.levels.ERROR)
       end
     end
   end
+end
+
+--- Legacy toggle function for backward compatibility (defaults to simple_toggle)
+--- @param cmd_string string
+--- @param env_table table
+--- @param effective_config table
+function M.toggle(cmd_string, env_table, effective_config)
+  M.simple_toggle(cmd_string, env_table, effective_config)
 end
 
 --- @return number|nil

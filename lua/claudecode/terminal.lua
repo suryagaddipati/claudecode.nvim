@@ -204,14 +204,32 @@ function M.close()
   get_provider().close()
 end
 
---- Toggles the Claude terminal open or closed.
+--- Simple toggle: always show/hide the Claude terminal regardless of focus.
 -- @param opts_override table (optional) Overrides for terminal appearance (split_side, split_width_percentage).
 -- @param cmd_args string|nil (optional) Arguments to append to the claude command.
-function M.toggle(opts_override, cmd_args)
+function M.simple_toggle(opts_override, cmd_args)
   local effective_config = build_config(opts_override)
   local cmd_string, claude_env_table = get_claude_command_and_env(cmd_args)
 
-  get_provider().toggle(cmd_string, claude_env_table, effective_config)
+  get_provider().simple_toggle(cmd_string, claude_env_table, effective_config)
+end
+
+--- Smart focus toggle: switches to terminal if not focused, hides if currently focused.
+-- @param opts_override table (optional) Overrides for terminal appearance (split_side, split_width_percentage).
+-- @param cmd_args string|nil (optional) Arguments to append to the claude command.
+function M.focus_toggle(opts_override, cmd_args)
+  local effective_config = build_config(opts_override)
+  local cmd_string, claude_env_table = get_claude_command_and_env(cmd_args)
+
+  get_provider().focus_toggle(cmd_string, claude_env_table, effective_config)
+end
+
+--- Toggles the Claude terminal open or closed (legacy function - use simple_toggle or focus_toggle).
+-- @param opts_override table (optional) Overrides for terminal appearance (split_side, split_width_percentage).
+-- @param cmd_args string|nil (optional) Arguments to append to the claude command.
+function M.toggle(opts_override, cmd_args)
+  -- Default to simple toggle for backward compatibility
+  M.simple_toggle(opts_override, cmd_args)
 end
 
 --- Gets the buffer number of the currently active Claude Code terminal.

@@ -313,7 +313,7 @@ describe("claudecode.terminal.native toggle behavior", function()
       assert.is_nil(mock_state.windows[terminal_winid])
     end)
 
-    it("should focus terminal when toggling from outside it", function()
+    it("should focus terminal when focus toggling from outside it", function()
       local cmd_string = "claude"
       local env_table = { TEST = "value" }
       local config = { split_side = "right", split_width_percentage = 0.3 }
@@ -345,8 +345,8 @@ describe("claudecode.terminal.native toggle behavior", function()
         return original_set_current_win(winid)
       end
 
-      -- Toggle should focus the terminal
-      native_provider.toggle(cmd_string, env_table, config)
+      -- Focus toggle should focus the terminal
+      native_provider.focus_toggle(cmd_string, env_table, config)
 
       -- Should have focused the terminal window
       assert.is_true(set_current_win_called)
@@ -388,6 +388,150 @@ describe("claudecode.terminal.native toggle behavior", function()
       -- Close should kill the process (cleanup_state called)
       native_provider.close()
       assert.is_nil(native_provider.get_active_bufnr())
+    end)
+  end)
+
+  describe("simple_toggle behavior", function()
+    it("should always hide terminal when visible, regardless of focus", function()
+      local cmd_string = "claude"
+      local env_table = { TEST = "value" }
+      local config = { split_side = "right", split_width_percentage = 0.3 }
+
+      -- Create a terminal
+      native_provider.open(cmd_string, env_table, config)
+      local initial_bufnr = native_provider.get_active_bufnr()
+      local mock_state = _G.get_mock_state()
+
+      -- Find the terminal window
+      local terminal_winid = nil
+      for winid, win in pairs(mock_state.windows) do
+        if win.bufnr == initial_bufnr then
+          terminal_winid = winid
+          break
+        end
+      end
+
+      -- Test 1: Not in terminal window - simple_toggle should still hide
+      mock_state.current_win = 1 -- Different window
+      native_provider.simple_toggle(cmd_string, env_table, config)
+
+      -- Should have hidden the terminal (set bufhidden=hide and closed window)
+      assert.are.equal("hide", mock_state.buffer_options[initial_bufnr].bufhidden)
+      assert.is_nil(mock_state.windows[terminal_winid])
+    end)
+
+    it("should always show terminal when not visible", function()
+      local cmd_string = "claude"
+      local env_table = { TEST = "value" }
+      local config = { split_side = "right", split_width_percentage = 0.3 }
+
+      -- Start with no terminal
+      assert.is_nil(native_provider.get_active_bufnr())
+
+      -- Simple toggle should create new terminal
+      native_provider.simple_toggle(cmd_string, env_table, config)
+
+      -- Should have created terminal
+      assert.is_not_nil(native_provider.get_active_bufnr())
+    end)
+
+    it("should show hidden terminal when toggled", function()
+      local cmd_string = "claude"
+      local env_table = { TEST = "value" }
+      local config = { split_side = "right", split_width_percentage = 0.3 }
+
+      -- Create and then hide a terminal
+      native_provider.open(cmd_string, env_table, config)
+      local initial_bufnr = native_provider.get_active_bufnr()
+      native_provider.simple_toggle(cmd_string, env_table, config) -- Hide it
+
+      -- Mock window creation for showing hidden terminal
+      local vsplit_called = false
+      local original_cmd = mock_vim.cmd
+      mock_vim.cmd = function(command)
+        if command:match("vsplit") then
+          vsplit_called = true
+        end
+        original_cmd(command)
+      end
+
+      -- Simple toggle should show the hidden terminal
+      native_provider.simple_toggle(cmd_string, env_table, config)
+
+      -- Should have shown the existing terminal
+      assert.are.equal(initial_bufnr, native_provider.get_active_bufnr())
+      assert.is_true(vsplit_called)
+    end)
+  end)
+
+  describe("focus_toggle behavior", function()
+    it("should focus terminal when visible but not focused", function()
+      local cmd_string = "claude"
+      local env_table = { TEST = "value" }
+      local config = { split_side = "right", split_width_percentage = 0.3 }
+
+      -- Create a terminal
+      native_provider.open(cmd_string, env_table, config)
+      local initial_bufnr = native_provider.get_active_bufnr()
+      local mock_state = _G.get_mock_state()
+
+      -- Find the terminal window
+      local terminal_winid = nil
+      for winid, win in pairs(mock_state.windows) do
+        if win.bufnr == initial_bufnr then
+          terminal_winid = winid
+          break
+        end
+      end
+
+      -- Mock that we're NOT in the terminal window
+      mock_state.current_win = 1 -- Some other window
+
+      local set_current_win_called = false
+      local focused_winid = nil
+      local original_set_current_win = mock_vim.api.nvim_set_current_win
+      mock_vim.api.nvim_set_current_win = function(winid)
+        set_current_win_called = true
+        focused_winid = winid
+        return original_set_current_win(winid)
+      end
+
+      -- Focus toggle should focus the terminal
+      native_provider.focus_toggle(cmd_string, env_table, config)
+
+      -- Should have focused the terminal window
+      assert.is_true(set_current_win_called)
+      assert.are.equal(terminal_winid, focused_winid)
+    end)
+
+    it("should hide terminal when focused and toggle called", function()
+      local cmd_string = "claude"
+      local env_table = { TEST = "value" }
+      local config = { split_side = "right", split_width_percentage = 0.3 }
+
+      -- Create a terminal
+      native_provider.open(cmd_string, env_table, config)
+      local initial_bufnr = native_provider.get_active_bufnr()
+      local mock_state = _G.get_mock_state()
+
+      -- Find the terminal window
+      local terminal_winid = nil
+      for winid, win in pairs(mock_state.windows) do
+        if win.bufnr == initial_bufnr then
+          terminal_winid = winid
+          break
+        end
+      end
+
+      -- Mock being in the terminal window
+      mock_state.current_win = terminal_winid
+
+      -- Focus toggle should hide the terminal
+      native_provider.focus_toggle(cmd_string, env_table, config)
+
+      -- Should have hidden the terminal
+      assert.are.equal("hide", mock_state.buffer_options[initial_bufnr].bufhidden)
+      assert.is_nil(mock_state.windows[terminal_winid])
     end)
   end)
 end)
