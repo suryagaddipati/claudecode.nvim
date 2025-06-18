@@ -61,6 +61,9 @@ Using [lazy.nvim](https://github.com/folke/lazy.nvim):
       desc = "Add file",
       ft = { "NvimTree", "neo-tree", "oil" },
     },
+    -- Diff management
+    { "<leader>da", "<cmd>ClaudeCodeDiffAccept<cr>", desc = "Accept diff" },
+    { "<leader>dq", "<cmd>ClaudeCodeDiffDeny<cr>", desc = "Deny diff" },
   },
 }
 ```
@@ -88,6 +91,8 @@ That's it! For more configuration options, see [Advanced Setup](#advanced-setup)
 - `:ClaudeCodeSend` - Send current visual selection to Claude, or add files from tree explorer
 - `:ClaudeCodeTreeAdd` - Add selected file(s) from tree explorer to Claude context (also available via ClaudeCodeSend)
 - `:ClaudeCodeAdd <file-path> [start-line] [end-line]` - Add a specific file or directory to Claude context by path with optional line range
+- `:ClaudeCodeDiffAccept` - Accept the current diff changes (equivalent to `<leader>da`)
+- `:ClaudeCodeDiffDeny` - Deny/reject the current diff changes (equivalent to `<leader>dq`)
 
 ### Toggle Behavior
 
@@ -137,7 +142,7 @@ When Claude proposes changes to your files, the plugin opens a native Neovim dif
 ### Accepting Changes
 
 - **`:w` (save)** - Accept the changes and apply them to your file
-- **`<leader>da`** - Accept the changes using the dedicated keymap
+- **`<leader>da`** - Accept the changes using the dedicated keymap (configured in LazyVim spec)
 
 You can edit the proposed changes in the right-hand diff buffer before accepting them. This allows you to modify Claude's suggestions or make additional tweaks before applying the final version to your file.
 
@@ -146,7 +151,7 @@ Both methods signal Claude Code to apply the changes to your file, after which t
 ### Rejecting Changes
 
 - **`:q` or `:close`** - Close the diff view to reject the changes
-- **`<leader>dq`** - Reject changes using the dedicated keymap
+- **`<leader>dq`** - Reject changes using the dedicated keymap (configured in LazyVim spec)
 - **`:bdelete` or `:bwipeout`** - Delete the diff buffer to reject changes
 
 When you reject changes, the diff view closes and the original file remains unchanged.
@@ -154,6 +159,28 @@ When you reject changes, the diff view closes and the original file remains unch
 ### Accepting/Rejecting from Claude Code Terminal
 
 You can also navigate to the Claude Code terminal window and accept or reject diffs directly from within Claude's interface. This provides an alternative way to manage diffs without using the Neovim-specific keymaps.
+
+### Customizing Diff Keymaps
+
+The diff keymaps are configured in the LazyVim spec and can be customized by modifying the `keys` table:
+
+```lua
+{
+  "coder/claudecode.nvim",
+  config = true,
+  keys = {
+    -- ... other keymaps ...
+
+    -- Customize diff keymaps to avoid conflicts (e.g., with debugger)
+    { "<leader>ya", "<cmd>ClaudeCodeDiffAccept<cr>", desc = "Accept diff" },
+    { "<leader>yn", "<cmd>ClaudeCodeDiffDeny<cr>", desc = "Deny diff" },
+
+    -- Or disable them entirely by omitting them from the keys table
+  },
+}
+```
+
+The commands `ClaudeCodeDiffAccept` and `ClaudeCodeDiffDeny` work only in diff buffers created by the plugin and will show a warning if used elsewhere.
 
 ### How It Works
 
