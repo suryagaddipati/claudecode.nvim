@@ -207,7 +207,7 @@ Log levels for authentication events:
 
 ### Integration Support
 
-- Terminal integration supports both toggleterm.nvim and native Neovim terminal
+- Terminal integration supports both snacks.nvim and native Neovim terminal
 - Compatible with popular file explorers (nvim-tree, oil.nvim)
 - Visual selection tracking across different selection modes
 

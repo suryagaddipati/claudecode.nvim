@@ -84,13 +84,9 @@ M.state = {
 }
 
 ---@alias ClaudeCode.TerminalOpts { \
----  split_side?: "left"|"right"|"top"|"bottom", \
+---  split_side?: "left"|"right", \
 ---  split_width_percentage?: number, \
----  split_height_percentage?: number, \
----  provider?: "auto"|"toggleterm"|"native", \
----  direction?: "vertical"|"horizontal"|"float"|"tab", \
----  size_function?: function, \
----  float_opts?: table, \
+---  provider?: "auto"|"snacks"|"native", \
 ---  show_native_term_exit_tip?: boolean }
 ---
 ---@alias ClaudeCode.SetupOpts { \
