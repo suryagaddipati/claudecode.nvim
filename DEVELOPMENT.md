@@ -39,7 +39,7 @@ claudecode.nvim/
 | MCP tools framework    | ✅ Done | -        | Dynamic tool registration and schema system                          |
 | Core MCP tools         | ✅ Done | -        | openFile, openDiff, getCurrentSelection, getOpenEditors              |
 | Diff integration       | ✅ Done | -        | Native Neovim diff with configurable options                         |
-| Terminal integration   | ✅ Done | -        | Snacks.nvim and native terminal support                              |
+| Terminal integration   | ✅ Done | -        | ToggleTerm.nvim and native terminal support                          |
 | Tests                  | ✅ Done | -        | Comprehensive test suite with unit, component, and integration tests |
 | CI pipeline            | ✅ Done | -        | GitHub Actions configured                                            |
 | Documentation          | ✅ Done | -        | Complete documentation                                               |

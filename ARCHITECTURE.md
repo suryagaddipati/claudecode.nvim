@@ -134,11 +134,15 @@ vim.api.nvim_create_autocmd("CursorMoved", {
 Flexible terminal management with provider pattern:
 
 ```lua
--- Snacks.nvim provider (preferred)
-if has_snacks then
-  Snacks.terminal.open(cmd, {
-    win = { position = "right", width = 0.3 }
+-- ToggleTerm.nvim provider (preferred)
+if has_toggleterm then
+  local Terminal = require('toggleterm.terminal').Terminal
+  local term = Terminal:new({
+    cmd = cmd,
+    direction = "vertical",
+    size = math.floor(vim.o.columns * 0.3)
   })
+  term:open()
 else
   -- Native fallback
   vim.cmd("vsplit | terminal " .. cmd)
