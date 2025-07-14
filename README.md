@@ -30,7 +30,7 @@ When Anthropic released Claude Code, they only supported VS Code and JetBrains. 
 ```lua
 {
   "coder/claudecode.nvim",
-  dependencies = { "folke/snacks.nvim" },
+  dependencies = { "akinsho/toggleterm.nvim" },
   config = true,
   keys = {
     { "<leader>a", nil, desc = "AI/Claude Code" },
@@ -59,7 +59,7 @@ That's it! The plugin will auto-configure everything else.
 
 - Neovim >= 0.8.0
 - [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) installed
-- [folke/snacks.nvim](https://github.com/folke/snacks.nvim) for enhanced terminal support
+- [akinsho/toggleterm.nvim](https://github.com/akinsho/toggleterm.nvim) for enhanced terminal support
 
 ## Quick Demo
 
@@ -139,7 +139,7 @@ For deep technical details, see [ARCHITECTURE.md](./ARCHITECTURE.md).
 ```lua
 {
   "coder/claudecode.nvim",
-  dependencies = { "folke/snacks.nvim" },
+  dependencies = { "akinsho/toggleterm.nvim" },
   opts = {
     -- Server Configuration
     port_range = { min = 10000, max = 65535 },
@@ -153,10 +153,23 @@ For deep technical details, see [ARCHITECTURE.md](./ARCHITECTURE.md).
 
     -- Terminal Configuration
     terminal = {
-      split_side = "right", -- "left" or "right"
-      split_width_percentage = 0.30,
-      provider = "auto", -- "auto", "snacks", or "native"
+      split_side = "right", -- "left", "right", "top", "bottom"
+      split_width_percentage = 0.30, -- For vertical splits
+      split_height_percentage = 0.30, -- For horizontal splits
+      provider = "auto", -- "auto", "toggleterm", or "native"
+      direction = nil, -- "vertical", "horizontal", "float", "tab" (nil = auto from split_side)
       auto_close = true,
+      
+      -- Float window options (when direction = "float")
+      float_opts = {
+        border = "curved", -- "single", "double", "curved", etc.
+        width = 120, -- Fixed width or nil for auto
+        height = 30, -- Fixed height or nil for auto
+        row = 5, -- Position from top
+        col = 5, -- Position from left
+        winblend = 0, -- Transparency (0-100)
+        zindex = 1000, -- Stacking order
+      },
     },
 
     -- Diff Integration
@@ -178,7 +191,7 @@ For deep technical details, see [ARCHITECTURE.md](./ARCHITECTURE.md).
 
 - **Claude not connecting?** Check `:ClaudeCodeStatus` and verify lock file exists in `~/.claude/ide/` (or `$CLAUDE_CONFIG_DIR/ide/` if `CLAUDE_CONFIG_DIR` is set)
 - **Need debug logs?** Set `log_level = "debug"` in opts
-- **Terminal issues?** Try `provider = "native"` if using snacks.nvim
+- **Terminal issues?** Try `provider = "native"` if using toggleterm.nvim
 
 ## Contributing
 

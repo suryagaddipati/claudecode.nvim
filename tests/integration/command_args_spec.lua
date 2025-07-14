@@ -180,7 +180,7 @@ describe("ClaudeCode command arguments integration", function()
     -- Clear package cache to ensure fresh requires
     package.loaded["claudecode"] = nil
     package.loaded["claudecode.terminal"] = nil
-    package.loaded["claudecode.terminal.snacks"] = nil
+    package.loaded["claudecode.terminal.toggleterm"] = nil
     package.loaded["claudecode.terminal.native"] = nil
     claudecode = require("claudecode")
   end)
@@ -207,7 +207,7 @@ describe("ClaudeCode command arguments integration", function()
     _G.require = original_require
     package.loaded["claudecode"] = nil
     package.loaded["claudecode.terminal"] = nil
-    package.loaded["claudecode.terminal.snacks"] = nil
+    package.loaded["claudecode.terminal.toggleterm"] = nil
     package.loaded["claudecode.terminal.native"] = nil
   end)
 

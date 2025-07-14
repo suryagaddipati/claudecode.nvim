@@ -67,7 +67,7 @@ return {
     -- terminal = {
     --   split_side = "right",                     -- "left" or "right"
     --   split_width_percentage = 0.30,            -- Width as percentage (0.0 to 1.0)
-    --   provider = "auto",                        -- "auto", "snacks", or "native"
+    --   provider = "auto",                        -- "auto", "toggleterm", or "native"
     --   show_native_term_exit_tip = true,         -- Show exit tip for native terminal
     --   auto_close = true,                        -- Auto-close terminal after command completion
     -- },

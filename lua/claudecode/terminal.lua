@@ -1,5 +1,5 @@
 --- Module to manage a dedicated vertical split terminal for Claude Code.
--- Supports Snacks.nvim or a native Neovim terminal fallback.
+-- Supports ToggleTerm.nvim or a native Neovim terminal fallback.
 -- @module claudecode.terminal
 
 --- @class TerminalProvider
@@ -20,10 +20,24 @@ local claudecode_server_module = require("claudecode.server.init")
 local config = {
   split_side = "right",
   split_width_percentage = 0.30,
+  split_height_percentage = 0.30,
   provider = "auto",
   show_native_term_exit_tip = true,
   terminal_cmd = nil,
   auto_close = true,
+  
+  -- New ToggleTerm-specific options
+  direction = nil, -- "vertical", "horizontal", "float", "tab" (nil = auto from split_side)
+  size_function = nil, -- Custom size calculation function
+  float_opts = {
+    border = "curved",
+    width = nil, -- nil = auto calculated
+    height = nil, -- nil = auto calculated
+    row = nil, -- nil = auto calculated
+    col = nil, -- nil = auto calculated
+    winblend = 0,
+    zindex = 1000,
+  },
 }
 
 -- Lazy load providers
@@ -51,18 +65,18 @@ local function get_provider()
   local logger = require("claudecode.logger")
 
   if config.provider == "auto" then
-    -- Try snacks first, then fallback to native silently
-    local snacks_provider = load_provider("snacks")
-    if snacks_provider and snacks_provider.is_available() then
-      return snacks_provider
+    -- Try toggleterm first, then fallback to native silently
+    local toggleterm_provider = load_provider("toggleterm")
+    if toggleterm_provider and toggleterm_provider.is_available() then
+      return toggleterm_provider
     end
     -- Fall through to native provider
-  elseif config.provider == "snacks" then
-    local snacks_provider = load_provider("snacks")
-    if snacks_provider and snacks_provider.is_available() then
-      return snacks_provider
+  elseif config.provider == "toggleterm" then
+    local toggleterm_provider = load_provider("toggleterm")
+    if toggleterm_provider and toggleterm_provider.is_available() then
+      return toggleterm_provider
     else
-      logger.warn("terminal", "'snacks' provider configured, but Snacks.nvim not available. Falling back to 'native'.")
+      logger.warn("terminal", "'toggleterm' provider configured, but ToggleTerm.nvim not available. Falling back to 'native'.")
     end
   elseif config.provider == "native" then
     -- noop, will use native provider as default below
@@ -175,9 +189,13 @@ end
 --- Configures the terminal module.
 -- Merges user-provided terminal configuration with defaults and sets the terminal command.
 -- @param user_term_config table (optional) Configuration options for the terminal.
--- @field user_term_config.split_side string 'left' or 'right' (default: 'right').
--- @field user_term_config.split_width_percentage number Percentage of screen width (0.0 to 1.0, default: 0.30).
--- @field user_term_config.provider string 'snacks' or 'native' (default: 'snacks').
+-- @field user_term_config.split_side string 'left', 'right', 'top', or 'bottom' (default: 'right').
+-- @field user_term_config.split_width_percentage number Percentage of screen width for vertical splits (0.0 to 1.0, default: 0.30).
+-- @field user_term_config.split_height_percentage number Percentage of screen height for horizontal splits (0.0 to 1.0, default: 0.30).
+-- @field user_term_config.provider string 'auto', 'toggleterm', or 'native' (default: 'auto').
+-- @field user_term_config.direction string 'vertical', 'horizontal', 'float', or 'tab' (default: auto from split_side).
+-- @field user_term_config.size_function function Custom size calculation function (optional).
+-- @field user_term_config.float_opts table Float window options for ToggleTerm (when direction = 'float').
 -- @field user_term_config.show_native_term_exit_tip boolean Show tip for exiting native terminal (default: true).
 -- @param p_terminal_cmd string|nil The command to run in the terminal (from main config).
 function M.setup(user_term_config, p_terminal_cmd)
@@ -200,16 +218,25 @@ function M.setup(user_term_config, p_terminal_cmd)
 
   for k, v in pairs(user_term_config) do
     if config[k] ~= nil and k ~= "terminal_cmd" then -- terminal_cmd is handled above
-      if k == "split_side" and (v == "left" or v == "right") then
+      if k == "split_side" and (v == "left" or v == "right" or v == "top" or v == "bottom") then
         config[k] = v
       elseif k == "split_width_percentage" and type(v) == "number" and v > 0 and v < 1 then
         config[k] = v
-      elseif k == "provider" and (v == "snacks" or v == "native") then
+      elseif k == "split_height_percentage" and type(v) == "number" and v > 0 and v < 1 then
+        config[k] = v
+      elseif k == "provider" and (v == "auto" or v == "toggleterm" or v == "native") then
         config[k] = v
       elseif k == "show_native_term_exit_tip" and type(v) == "boolean" then
         config[k] = v
       elseif k == "auto_close" and type(v) == "boolean" then
         config[k] = v
+      elseif k == "direction" and (v == "vertical" or v == "horizontal" or v == "float" or v == "tab" or v == nil) then
+        config[k] = v
+      elseif k == "size_function" and (type(v) == "function" or v == nil) then
+        config[k] = v
+      elseif k == "float_opts" and type(v) == "table" then
+        -- Merge float_opts with defaults
+        config[k] = vim.tbl_deep_extend("force", config[k], v)
       else
         vim.notify("claudecode.terminal.setup: Invalid value for " .. k .. ": " .. tostring(v), vim.log.levels.WARN)
       end
@@ -289,11 +316,11 @@ end
 --- Gets the managed terminal instance for testing purposes.
 -- NOTE: This function is intended for use in tests to inspect internal state.
 -- The underscore prefix indicates it's not part of the public API for regular use.
--- @return snacks.terminal|nil The managed Snacks terminal instance, or nil.
+-- @return table|nil The managed terminal instance, or nil.
 function M._get_managed_terminal_for_test()
-  local snacks_provider = load_provider("snacks")
-  if snacks_provider and snacks_provider._get_terminal_for_test then
-    return snacks_provider._get_terminal_for_test()
+  local toggleterm_provider = load_provider("toggleterm")
+  if toggleterm_provider and toggleterm_provider._get_terminal_for_test then
+    return toggleterm_provider._get_terminal_for_test()
   end
   return nil
 end
