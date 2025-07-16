@@ -25,7 +25,7 @@ local config = {
   show_native_term_exit_tip = true,
   terminal_cmd = nil,
   auto_close = true,
-  
+
   -- New ToggleTerm-specific options
   direction = nil, -- "vertical", "horizontal", "float", "tab" (nil = auto from split_side)
   size_function = nil, -- Custom size calculation function
@@ -63,33 +63,7 @@ end
 --- @return TerminalProvider provider The terminal provider module (never nil)
 local function get_provider()
   local logger = require("claudecode.logger")
-
-  if config.provider == "auto" then
-    -- Try toggleterm first, then fallback to native silently
-    local toggleterm_provider = load_provider("toggleterm")
-    if toggleterm_provider and toggleterm_provider.is_available() then
-      return toggleterm_provider
-    end
-    -- Fall through to native provider
-  elseif config.provider == "toggleterm" then
-    local toggleterm_provider = load_provider("toggleterm")
-    if toggleterm_provider and toggleterm_provider.is_available() then
-      return toggleterm_provider
-    else
-      logger.warn("terminal", "'toggleterm' provider configured, but ToggleTerm.nvim not available. Falling back to 'native'.")
-    end
-  elseif config.provider == "native" then
-    -- noop, will use native provider as default below
-    logger.debug("terminal", "Using native terminal provider")
-  else
-    logger.warn("terminal", "Invalid provider configured: " .. tostring(config.provider) .. ". Defaulting to 'native'.")
-  end
-
-  local native_provider = load_provider("native")
-  if not native_provider then
-    error("ClaudeCode: Critical error - native terminal provider failed to load")
-  end
-  return native_provider
+  return load_provider("toggleterm")
 end
 
 --- Builds the effective terminal configuration by merging defaults with overrides
