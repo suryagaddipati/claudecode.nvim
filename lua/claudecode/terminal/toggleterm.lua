@@ -172,6 +172,13 @@ local function build_terminal_opts(cmd_string, config, env_table, focus)
     close_on_exit = false, -- We handle this manually via config.auto_close
     -- Use a specific count to avoid conflicts with user's regular terminals
     count = 99, -- High number to avoid conflicts
+    on_open = function(term)
+      local map_opts = {buffer = term.bufnr}
+      -- Give Escape key to Claude Code instead of exiting terminal mode
+      vim.keymap.set('t', '<Esc>', '<Esc>', map_opts)  -- Pass through to Claude
+      -- Use Ctrl+\ Ctrl+n to exit terminal mode instead
+      vim.keymap.set('t', '<C-\\><C-n>', '<C-\\><C-n>', map_opts)
+    end,
   }
   
   -- Add size if applicable (not for float/tab directions)
