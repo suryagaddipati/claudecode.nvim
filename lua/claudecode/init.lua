@@ -298,9 +298,16 @@ function M.setup(opts)
   opts = opts or {}
 
   local terminal_opts = nil
+  local gitsigns_opts = nil
+  
   if opts.terminal then
     terminal_opts = opts.terminal
     opts.terminal = nil -- Remove from main opts to avoid polluting M.state.config
+  end
+  
+  if opts.gitsigns then
+    gitsigns_opts = opts.gitsigns
+    opts.gitsigns = nil -- Remove from main opts to avoid polluting M.state.config
   end
 
   local config = require("claudecode.config")
@@ -324,6 +331,23 @@ function M.setup(opts)
 
   local diff = require("claudecode.diff")
   diff.setup(M.state.config)
+
+  -- Setup gitsigns integration if not explicitly disabled
+  if gitsigns_opts ~= false then
+    local gitsigns_setup_ok, gitsigns_module = pcall(require, "claudecode.gitsigns_integration")
+    if gitsigns_setup_ok then
+      -- If gitsigns_opts is nil, use default settings
+      local default_gitsigns_opts = {
+        create_commands = true,
+        create_keymaps = false, -- Default to false to avoid conflicts
+      }
+      local final_gitsigns_opts = gitsigns_opts or default_gitsigns_opts
+      gitsigns_module.setup(final_gitsigns_opts)
+      logger.debug("init", "Gitsigns integration enabled")
+    else
+      logger.debug("init", "Gitsigns integration not available")
+    end
+  end
 
   if M.state.config.auto_start then
     M.start(false) -- Suppress notification on auto-start
