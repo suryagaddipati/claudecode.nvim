@@ -170,8 +170,8 @@ local function build_terminal_opts(cmd_string, config, env_table, focus)
     hidden = true, -- Prevent global ToggleTerm commands from affecting this terminal
     direction = direction,
     close_on_exit = false, -- We handle this manually via config.auto_close
-    -- Use a specific count to avoid conflicts with user's regular terminals
-    count = 99, -- High number to avoid conflicts
+    -- Use configured terminal count for Claude Code
+    count = config.toggleterm_count,
     on_open = function(term)
       local map_opts = {buffer = term.bufnr}
       -- Give Escape key to Claude Code instead of exiting terminal mode

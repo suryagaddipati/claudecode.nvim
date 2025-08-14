@@ -29,6 +29,7 @@ local config = {
   -- New ToggleTerm-specific options
   direction = nil, -- "vertical", "horizontal", "float", "tab" (nil = auto from split_side)
   size_function = nil, -- Custom size calculation function
+  toggleterm_count = 99, -- ToggleTerm terminal number/count (default: 99 to avoid conflicts)
   float_opts = {
     border = "curved",
     width = nil, -- nil = auto calculated
@@ -207,6 +208,8 @@ function M.setup(user_term_config, p_terminal_cmd)
       elseif k == "direction" and (v == "vertical" or v == "horizontal" or v == "float" or v == "tab" or v == nil) then
         config[k] = v
       elseif k == "size_function" and (type(v) == "function" or v == nil) then
+        config[k] = v
+      elseif k == "toggleterm_count" and type(v) == "number" and v > 0 and v <= 999 then
         config[k] = v
       elseif k == "float_opts" and type(v) == "table" then
         -- Merge float_opts with defaults
